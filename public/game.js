@@ -1092,7 +1092,7 @@ function fadeToAction(character, newAction, duration = 0.5) {
         // Ensure new action is properly set up
         newAction.reset();
         newAction.setEffectiveTimeScale(1);
-        newAction.setEffectiveWeight(0); // Start at 0 weight
+        newAction.setEffectiveWeight(1); // Set to full weight immediately for stronger effect
         newAction.enabled = true;
         
         // Make sure the action is properly synced with the mixer
@@ -1101,9 +1101,16 @@ function fadeToAction(character, newAction, duration = 0.5) {
             return;
         }
         
-        newAction.play();
-        // Stronger fade in
+        // Ensure the action is properly bound to the mixer
+        if (!newAction.isRunning()) {
+            newAction.play();
+        }
+        
+        // Stronger fade in - set weight immediately then fade
+        newAction.setEffectiveWeight(0);
         newAction.fadeIn(duration);
+        
+        console.log('fadeToAction: Playing animation', newAction.getClip().name, 'with duration', duration);
     }
     
     character.currentAction = newAction;
@@ -1142,11 +1149,14 @@ function updateMovement() {
                 // Stronger fade when switching between walk directions
                 const fadeDuration = (player.isMoving && !player.isMovingBackwards) ? 0.6 : 0.5;
                 if (!player.isMovingBackwards || player.currentAction !== player.walkBackwardsAction) {
+                    console.log('Switching to walk backwards animation');
                     fadeToAction(player, player.walkBackwardsAction, fadeDuration);
                     player.isMovingBackwards = true;
                     player.isMoving = true;
                     stateChanged = true;
                 }
+            } else {
+                console.warn('Cannot play walk backwards: mixer:', !!player.mixer, 'action:', !!player.walkBackwardsAction);
             }
         } else {
             // Use forward walk animation
@@ -1154,11 +1164,14 @@ function updateMovement() {
                 // Stronger fade when switching between walk directions
                 const fadeDuration = (player.isMoving && player.isMovingBackwards) ? 0.6 : 0.5;
                 if (!player.isMoving || player.isMovingBackwards || player.currentAction !== player.walkAction) {
+                    console.log('Switching to walk forward animation');
                     fadeToAction(player, player.walkAction, fadeDuration);
                     player.isMoving = true;
                     player.isMovingBackwards = false;
                     stateChanged = true;
                 }
+            } else {
+                console.warn('Cannot play walk forward: mixer:', !!player.mixer, 'action:', !!player.walkAction);
             }
         }
     } else if (player.mixer && player.idleAction && (player.isMoving || player.isMovingBackwards)) {
