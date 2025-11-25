@@ -7,9 +7,6 @@ let username = '';
 let isInitialized = false;
 let clock = new THREE.Clock(); // For animation timing
 
-// Model cache to avoid reloading the same models
-const modelCache = new Map();
-
 // Movement state
 const keys = {};
 const moveSpeed = 0.05; // Reduced by 50% to match animation speed
@@ -394,16 +391,9 @@ function createPlayerCharacter() {
     } catch (e) {
         console.warn('DRACO loader not available, models will load without compression:', e);
     }
-    console.log('Loading walk.glb model...');
     loader.load(
         'models/walk.glb',
         (gltf) => {
-            console.log('Walk model loaded successfully');
-            // Cache the model for reuse
-            if (!modelCache.has('walk')) {
-                modelCache.set('walk', gltf.scene.clone(true));
-            }
-            
             const model = gltf.scene;
             
             // Enable shadows on all meshes
@@ -588,15 +578,6 @@ function addOtherPlayer(playerData) {
     scene.add(group);
     
     // Load character model from walk.glb for other players
-    // Check cache first to avoid reloading
-    if (modelCache.has('walk')) {
-        console.log('Using cached model for other player:', playerData.username);
-        const cachedModel = modelCache.get('walk');
-        const model = cachedModel.clone(true);
-        setupOtherPlayerModel(model, group, sprite, playerData);
-        return;
-    }
-    
     const loader = new THREE.GLTFLoader();
     // Set up DRACO loader for compressed models (optional - won't break if not available)
     try {
@@ -613,12 +594,7 @@ function addOtherPlayer(playerData) {
         'models/walk.glb',
         (gltf) => {
             console.log('Character model loaded successfully for:', playerData.username);
-            // Cache the model for reuse
-            if (!modelCache.has('walk')) {
-                modelCache.set('walk', gltf.scene.clone(true));
-            }
-            // Clone the entire scene to avoid sharing references
-            const model = gltf.scene.clone(true); // Deep clone to clone all children
+            const model = gltf.scene.clone(true); // Clone the model for each player
             
             // Enable shadows
             model.traverse((child) => {
@@ -730,84 +706,6 @@ function addOtherPlayer(playerData) {
         usernameSprite: sprite,
         username: playerData.username
     });
-}
-
-// Helper function to set up other player model (used for cached models)
-function setupOtherPlayerModel(model, group, sprite, playerData) {
-    // Enable shadows
-    model.traverse((child) => {
-        if (child.isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-        }
-    });
-    
-    // Use same scale as player character
-    const box = new THREE.Box3().setFromObject(model);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDimension = Math.max(size.x, size.y, size.z);
-    const scale = 3.5 / maxDimension;
-    
-    model.scale.set(scale, scale, scale);
-    model.rotation.y = 0;
-    
-    // Center the model
-    const center = box.getCenter(new THREE.Vector3());
-    model.position.sub(center);
-    model.position.y = -box.min.y * scale;
-    
-    group.add(model);
-    
-    // Update username sprite position
-    if (size.y > 0) {
-        sprite.position.y = (size.y * scale) + 0.5;
-    }
-    
-    // Create animation mixer
-    const mixer = new THREE.AnimationMixer(model);
-    const otherPlayer = otherPlayers.get(playerData.id);
-    if (otherPlayer) {
-        otherPlayer.mixer = mixer;
-        otherPlayer.walkAction = null;
-        otherPlayer.idleAction = null;
-        otherPlayer.currentAction = null;
-        otherPlayer.isMoving = false;
-        
-        // Load idle animation
-        const loader = new THREE.GLTFLoader();
-        try {
-            if (typeof THREE.DRACOLoader !== 'undefined') {
-                const dracoLoader = new THREE.DRACOLoader();
-                dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-                loader.setDRACOLoader(dracoLoader);
-            }
-        } catch (e) {
-            console.warn('DRACO loader not available:', e);
-        }
-        loader.load(
-            'models/idle.glb',
-            (idleGltf) => {
-                if (idleGltf.animations && idleGltf.animations.length > 0) {
-                    const idleClip = idleGltf.animations[0];
-                    const idleAction = mixer.clipAction(idleClip);
-                    idleAction.setLoop(THREE.LoopRepeat);
-                    idleAction.reset();
-                    
-                    if (otherPlayer) {
-                        otherPlayer.idleAction = idleAction;
-                        if (idleAction) {
-                            idleAction.play();
-                            otherPlayer.currentAction = idleAction;
-                        }
-                    }
-                }
-            },
-            undefined,
-            (error) => {
-                // Idle not found, that's okay
-            }
-        );
-    }
 }
 
 function removeOtherPlayer(playerId) {
