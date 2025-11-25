@@ -780,32 +780,61 @@ function createPlayerCharacter() {
             let idleAction = null;
             let currentAction = null;
             
+            // Load walk animation from walk.glb
             if (walkGltf.animations && walkGltf.animations.length > 0) {
                 const walkClip = walkGltf.animations[0];
+                console.log('Loading walk animation:', walkClip.name || 'unnamed');
                 walkAction = mixer.clipAction(walkClip);
-                walkAction.setLoop(THREE.LoopRepeat);
-                walkAction.reset();
-                walkAction.stop();
+                if (walkAction) {
+                    walkAction.setLoop(THREE.LoopRepeat);
+                    walkAction.reset();
+                    walkAction.stop();
+                    console.log('Walk action created successfully');
+                } else {
+                    console.error('Failed to create walk action');
+                }
+            } else {
+                console.warn('No walk animation found in walk.glb. Animations array:', walkGltf.animations);
             }
             
+            // Load walk backwards animation from walkbackwards.glb
             if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
                 const walkBackwardsClip = walkBackwardsGltf.animations[0];
+                console.log('Loading walk backwards animation:', walkBackwardsClip.name || 'unnamed');
                 walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
-                walkBackwardsAction.setLoop(THREE.LoopRepeat);
-                walkBackwardsAction.reset();
-                walkBackwardsAction.stop();
+                if (walkBackwardsAction) {
+                    walkBackwardsAction.setLoop(THREE.LoopRepeat);
+                    walkBackwardsAction.reset();
+                    walkBackwardsAction.stop();
+                    console.log('Walk backwards action created successfully');
+                } else {
+                    console.error('Failed to create walk backwards action');
+                }
+            } else {
+                console.warn('No walk backwards animation found. walkBackwardsGltf:', !!walkBackwardsGltf, 'animations:', walkBackwardsGltf?.animations);
             }
             
+            // Load idle animation from idle.glb
             if (idleGltf.animations && idleGltf.animations.length > 0) {
                 const idleClip = idleGltf.animations[0];
+                console.log('Loading idle animation:', idleClip.name || 'unnamed');
                 idleAction = mixer.clipAction(idleClip);
-                idleAction.setLoop(THREE.LoopRepeat);
-                idleAction.reset();
-                idleAction.play();
-                currentAction = idleAction;
-            } else if (walkAction) {
-                walkAction.play();
-                currentAction = walkAction;
+                if (idleAction) {
+                    idleAction.setLoop(THREE.LoopRepeat);
+                    idleAction.reset();
+                    idleAction.play();
+                    currentAction = idleAction;
+                    console.log('Idle action playing');
+                } else {
+                    console.error('Failed to create idle action');
+                }
+            } else {
+                console.warn('No idle animation found in idle.glb. Animations array:', idleGltf.animations);
+                // Fallback to walk animation if idle not available
+                if (walkAction) {
+                    walkAction.play();
+                    currentAction = walkAction;
+                }
             }
             
             // Update username sprite position after model loads
