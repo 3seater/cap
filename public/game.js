@@ -33,6 +33,10 @@ document.getElementById('username-field').addEventListener('keypress', (e) => {
 function init() {
     if (isInitialized) return;
     isInitialized = true;
+    
+    console.log('Initializing game...');
+    console.log('THREE.js version:', THREE.REVISION);
+    console.log('DRACOLoader available:', typeof THREE.DRACOLoader !== 'undefined');
 
     // Initialize Three.js scene
     scene = new THREE.Scene();
@@ -380,15 +384,21 @@ function createPlayerCharacter() {
     
     // Load the character model from walk.glb (using only this file)
     const loader = new THREE.GLTFLoader();
-    // Set up DRACO loader for compressed models
-    if (typeof THREE.DRACOLoader !== 'undefined') {
-        const dracoLoader = new THREE.DRACOLoader();
-        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-        loader.setDRACOLoader(dracoLoader);
+    // Set up DRACO loader for compressed models (optional - won't break if not available)
+    try {
+        if (typeof THREE.DRACOLoader !== 'undefined') {
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+            loader.setDRACOLoader(dracoLoader);
+        }
+    } catch (e) {
+        console.warn('DRACO loader not available, models will load without compression:', e);
     }
+    console.log('Loading walk.glb model...');
     loader.load(
         'models/walk.glb',
         (gltf) => {
+            console.log('Walk model loaded successfully');
             // Cache the model for reuse
             if (!modelCache.has('walk')) {
                 modelCache.set('walk', gltf.scene.clone(true));
@@ -588,11 +598,15 @@ function addOtherPlayer(playerData) {
     }
     
     const loader = new THREE.GLTFLoader();
-    // Set up DRACO loader for compressed models
-    if (typeof THREE.DRACOLoader !== 'undefined') {
-        const dracoLoader = new THREE.DRACOLoader();
-        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-        loader.setDRACOLoader(dracoLoader);
+    // Set up DRACO loader for compressed models (optional - won't break if not available)
+    try {
+        if (typeof THREE.DRACOLoader !== 'undefined') {
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+            loader.setDRACOLoader(dracoLoader);
+        }
+    } catch (e) {
+        console.warn('DRACO loader not available, models will load without compression:', e);
     }
     console.log('Loading character model for other player:', playerData.username);
     loader.load(
@@ -768,10 +782,14 @@ function setupOtherPlayerModel(model, group, sprite, playerData) {
         
         // Load idle animation
         const loader = new THREE.GLTFLoader();
-        if (typeof THREE.DRACOLoader !== 'undefined') {
-            const dracoLoader = new THREE.DRACOLoader();
-            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-            loader.setDRACOLoader(dracoLoader);
+        try {
+            if (typeof THREE.DRACOLoader !== 'undefined') {
+                const dracoLoader = new THREE.DRACOLoader();
+                dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+                loader.setDRACOLoader(dracoLoader);
+            }
+        } catch (e) {
+            console.warn('DRACO loader not available:', e);
         }
         loader.load(
             'models/idle.glb',
