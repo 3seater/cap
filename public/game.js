@@ -15,6 +15,10 @@ const moveSpeed = 0.02; // Reduced by 60% (40% of original speed)
 const rotationSpeed = 0.05;
 let pitch = 0; // Camera pitch (up/down look)
 
+// Chat state
+let isChatOpen = false;
+let chatMessages = new Map(); // Store chat message sprites per player
+
 function createGLTFLoader() {
     const loader = new THREE.GLTFLoader();
     try {
@@ -85,6 +89,8 @@ function hideLoadingScreen() {
             loadingScreen.classList.add('hidden');
         }
         document.getElementById('ui-overlay').classList.remove('hidden');
+        document.getElementById('chat-container').classList.remove('hidden');
+        document.getElementById('chat-hint').classList.remove('hidden');
     }, remaining);
 }
 
@@ -299,15 +305,55 @@ function init() {
     socket.on('playerLeft', (playerId) => {
         removeOtherPlayer(playerId);
         updatePlayerCount();
+        // Remove chat message sprite if exists
+        if (chatMessages.has(playerId)) {
+            const chatSprite = chatMessages.get(playerId);
+            scene.remove(chatSprite);
+            chatMessages.delete(playerId);
+        }
+    });
+    
+    // Chat message received
+    socket.on('chatMessage', (data) => {
+        displayChatMessage(data.playerId, data.username, data.message);
+        addMessageToChatLog(data.username, data.message);
     });
     
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
-        keys[e.key.toLowerCase()] = true;
+        const key = e.key.toLowerCase();
+        
+        // T key to toggle chat
+        if (key === 't' && isInitialized && !isChatOpen) {
+            openChat();
+            e.preventDefault();
+            return;
+        }
+        
+        // Enter to send message (only if chat is open)
+        if (key === 'enter' && isChatOpen) {
+            sendChatMessage();
+            e.preventDefault();
+            return;
+        }
+        
+        // Escape to close chat
+        if (key === 'escape' && isChatOpen) {
+            closeChat();
+            e.preventDefault();
+            return;
+        }
+        
+        // Don't register movement keys if chat is open
+        if (!isChatOpen) {
+            keys[key] = true;
+        }
     });
     
     document.addEventListener('keyup', (e) => {
-        keys[e.key.toLowerCase()] = false;
+        if (!isChatOpen) {
+            keys[e.key.toLowerCase()] = false;
+        }
     });
     
     // Mouse controls for camera
@@ -1053,6 +1099,225 @@ function animate() {
         floatingHat.position.y = 6 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
     }
     
+    // Update chat message sprites positions
+    updateChatMessageSprites();
+    
     renderer.render(scene, camera);
+}
+
+// Chat functions
+function openChat() {
+    isChatOpen = true;
+    const chatContainer = document.getElementById('chat-container');
+    const chatInputContainer = document.getElementById('chat-input-container');
+    const chatHint = document.getElementById('chat-hint');
+    
+    if (chatContainer) chatContainer.classList.remove('hidden');
+    if (chatInputContainer) chatInputContainer.classList.add('active');
+    if (chatHint) chatHint.classList.add('hidden');
+    
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.focus();
+    }
+    
+    // Release pointer lock when chat opens
+    if (document.pointerLockElement) {
+        document.exitPointerLock();
+    }
+}
+
+function closeChat() {
+    isChatOpen = false;
+    const chatInputContainer = document.getElementById('chat-input-container');
+    const chatHint = document.getElementById('chat-hint');
+    
+    if (chatInputContainer) chatInputContainer.classList.remove('active');
+    if (chatHint) chatHint.classList.remove('hidden');
+    
+    const chatInput = document.getElementById('chat-input');
+    if (chatInput) {
+        chatInput.value = '';
+        chatInput.blur();
+    }
+}
+
+function sendChatMessage() {
+    const chatInput = document.getElementById('chat-input');
+    if (!chatInput || !socket || !socket.connected) return;
+    
+    const message = chatInput.value.trim();
+    if (message.length === 0) {
+        closeChat();
+        return;
+    }
+    
+    // Send message to server
+    socket.emit('chatMessage', {
+        username: username,
+        message: message
+    });
+    
+    // Display own message in chat log
+    addMessageToChatLog(username, message);
+    
+    // Clear input and close chat
+    chatInput.value = '';
+    closeChat();
+}
+
+function addMessageToChatLog(username, message) {
+    const chatLog = document.getElementById('chat-log');
+    if (!chatLog) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'chat-message';
+    messageDiv.innerHTML = `<span class="chat-username">${escapeHtml(username)}:</span> ${escapeHtml(message)}`;
+    
+    chatLog.appendChild(messageDiv);
+    
+    // Auto-scroll to bottom
+    chatLog.scrollTop = chatLog.scrollHeight;
+    
+    // Keep only last 50 messages
+    while (chatLog.children.length > 50) {
+        chatLog.removeChild(chatLog.firstChild);
+    }
+}
+
+function displayChatMessage(playerId, username, message) {
+    // Remove existing chat message sprite for this player
+    if (chatMessages.has(playerId)) {
+        const oldSprite = chatMessages.get(playerId);
+        if (oldSprite.parent) {
+            oldSprite.parent.remove(oldSprite);
+        }
+        scene.remove(oldSprite);
+        chatMessages.delete(playerId);
+    }
+    
+    // Find the player's mesh
+    let playerMesh = null;
+    if (playerId === socket.id && player) {
+        playerMesh = player.mesh;
+    } else {
+        const otherPlayer = otherPlayers.get(playerId);
+        if (otherPlayer) {
+            playerMesh = otherPlayer.mesh;
+        }
+    }
+    
+    if (!playerMesh) return;
+    
+    // Create chat message sprite
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    
+    // Set font and measure text
+    const displayText = `${username}: ${message}`;
+    context.font = '400 9px Inter, -apple-system, sans-serif';
+    const textWidth = context.measureText(displayText).width;
+    
+    const baseWidth = Math.max(120, textWidth + 20);
+    const baseHeight = 18;
+    
+    // High resolution canvas
+    canvas.width = baseWidth * dpr;
+    canvas.height = baseHeight * dpr;
+    canvas.style.width = baseWidth + 'px';
+    canvas.style.height = baseHeight + 'px';
+    
+    context.scale(dpr, dpr);
+    
+    // Background
+    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
+    context.fillRect(0, 0, baseWidth, baseHeight);
+    
+    // Blue border
+    context.strokeStyle = '#1047d2';
+    context.lineWidth = 1;
+    context.strokeRect(0.5, 0.5, baseWidth - 1, baseHeight - 1);
+    
+    // Text
+    context.fillStyle = '#ffffff';
+    context.font = '400 9px Inter, -apple-system, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(displayText, baseWidth / 2, baseHeight / 2);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    
+    const aspectRatio = baseWidth / baseHeight;
+    sprite.scale.set(0.2 * aspectRatio, 0.2, 1);
+    
+    // Position above username label
+    sprite.position.y = 3.0; // Above username
+    sprite.userData.playerId = playerId;
+    sprite.userData.startTime = Date.now();
+    sprite.userData.duration = 5000; // 5 seconds
+    
+    playerMesh.add(sprite);
+    chatMessages.set(playerId, sprite);
+}
+
+function updateChatMessageSprites() {
+    const now = Date.now();
+    const toRemove = [];
+    
+    chatMessages.forEach((sprite, playerId) => {
+        // Check if message should expire
+        if (sprite.userData.startTime && (now - sprite.userData.startTime) > sprite.userData.duration) {
+            toRemove.push(playerId);
+            return;
+        }
+        
+        // Update sprite position to follow player
+        const playerMesh = playerId === socket.id && player ? player.mesh : 
+                          (otherPlayers.get(playerId) ? otherPlayers.get(playerId).mesh : null);
+        
+        if (playerMesh && sprite.parent !== playerMesh) {
+            // Re-parent if needed
+            if (sprite.parent) {
+                sprite.parent.remove(sprite);
+            }
+            playerMesh.add(sprite);
+        }
+        
+        // Make sprite face camera
+        if (camera) {
+            sprite.lookAt(camera.position);
+        }
+        
+        // Fade out in last second
+        const elapsed = now - sprite.userData.startTime;
+        const fadeStart = sprite.userData.duration - 1000;
+        if (elapsed > fadeStart) {
+            const fadeProgress = (elapsed - fadeStart) / 1000;
+            sprite.material.opacity = 1 - fadeProgress;
+        }
+    });
+    
+    // Remove expired messages
+    toRemove.forEach(playerId => {
+        const sprite = chatMessages.get(playerId);
+        if (sprite) {
+            scene.remove(sprite);
+            if (sprite.parent) {
+                sprite.parent.remove(sprite);
+            }
+            chatMessages.delete(playerId);
+        }
+    });
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 

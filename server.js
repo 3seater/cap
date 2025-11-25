@@ -70,6 +70,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle chat messages
+  socket.on('chatMessage', (data) => {
+    const player = players.get(socket.id);
+    if (player) {
+      // Broadcast message to all players
+      io.emit('chatMessage', {
+        playerId: socket.id,
+        username: player.username,
+        message: data.message
+      });
+    }
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     const player = players.get(socket.id);
