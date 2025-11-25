@@ -982,22 +982,29 @@ function addOtherPlayer(playerData) {
             let idleAction = null;
             let currentAction = null;
             
+            // Load walk animation from walk.glb
             if (walkGltf.animations && walkGltf.animations.length > 0) {
                 const walkClip = walkGltf.animations[0];
                 walkAction = mixer.clipAction(walkClip);
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
                 walkAction.stop();
+            } else {
+                console.warn('No walk animation found in walk.glb for other player:', playerData.username);
             }
             
+            // Load walk backwards animation from walkbackwards.glb
             if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
                 const walkBackwardsClip = walkBackwardsGltf.animations[0];
                 walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
                 walkBackwardsAction.setLoop(THREE.LoopRepeat);
                 walkBackwardsAction.reset();
                 walkBackwardsAction.stop();
+            } else {
+                console.warn('No walk backwards animation found in walkbackwards.glb for other player:', playerData.username);
             }
             
+            // Load idle animation from idle.glb
             if (idleGltf.animations && idleGltf.animations.length > 0) {
                 const idleClip = idleGltf.animations[0];
                 idleAction = mixer.clipAction(idleClip);
@@ -1005,9 +1012,13 @@ function addOtherPlayer(playerData) {
                 idleAction.reset();
                 idleAction.play();
                 currentAction = idleAction;
-            } else if (walkAction) {
-                walkAction.play();
-                currentAction = walkAction;
+            } else {
+                console.warn('No idle animation found in idle.glb for other player:', playerData.username);
+                // Fallback to walk animation if idle not available
+                if (walkAction) {
+                    walkAction.play();
+                    currentAction = walkAction;
+                }
             }
             
             // Update username sprite position after model loads
