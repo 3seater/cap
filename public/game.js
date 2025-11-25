@@ -1299,6 +1299,16 @@ function updateChatMessageSprites() {
             playerMesh.add(sprite);
         }
         
+        // Position chat message relative to username sprite
+        if (playerMesh) {
+            const usernameSprite = (playerId === socket.id && player ? player.usernameSprite : 
+                                   (otherPlayers.get(playerId) ? otherPlayers.get(playerId).usernameSprite : null));
+            if (usernameSprite) {
+                // Position chat message 0.4 units below username sprite
+                sprite.position.y = usernameSprite.position.y - 0.4;
+            }
+        }
+        
         // Make sprite face camera
         if (camera) {
             sprite.lookAt(camera.position);
