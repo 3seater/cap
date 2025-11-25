@@ -34,20 +34,15 @@ function loadWalkGLTF() {
         return Promise.resolve(walkGLTF);
     }
     const loader = createGLTFLoader();
-    console.time('walk.glb load');
     return new Promise((resolve, reject) => {
         loader.load(
             'models/walk.glb',
             (gltf) => {
-                console.timeEnd('walk.glb load');
                 walkGLTF = gltf;
                 resolve(gltf);
             },
             undefined,
-            (error) => {
-                console.timeEnd('walk.glb load');
-                reject(error);
-            }
+            reject
         );
     });
 }
@@ -57,30 +52,118 @@ function loadIdleGLTF() {
         return Promise.resolve(idleGLTF);
     }
     const loader = createGLTFLoader();
-    console.time('idle.glb load');
     return new Promise((resolve, reject) => {
         loader.load(
             'models/idle.glb',
             (gltf) => {
-                console.timeEnd('idle.glb load');
                 idleGLTF = gltf;
                 resolve(gltf);
             },
             undefined,
-            (error) => {
-                console.timeEnd('idle.glb load');
-                reject(error);
-            }
+            reject
         );
     });
 }
 
+// Loading screen state
+let loadingStartTime = 0;
+const MIN_LOADING_TIME = 5000; // Minimum 5 seconds
+let modelsLoaded = false;
+let serverConnected = false;
+
+function updateLoadingProgress(percent, text) {
+    const progressBar = document.getElementById('loading-progress-bar');
+    const loadingText = document.getElementById('loading-text');
+    if (progressBar) progressBar.style.width = percent + '%';
+    if (loadingText) loadingText.textContent = text;
+}
+
+function hideLoadingScreen() {
+    const loadingScreen = document.getElementById('loading-screen');
+    const elapsed = Date.now() - loadingStartTime;
+    const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+    
+    setTimeout(() => {
+        if (loadingScreen) {
+            loadingScreen.classList.add('hidden');
+        }
+        document.getElementById('ui-overlay').classList.remove('hidden');
+    }, remaining);
+}
+
 // Initialize username input
-document.getElementById('join-button').addEventListener('click', () => {
+document.getElementById('join-button').addEventListener('click', async () => {
     username = document.getElementById('username-field').value.trim() || `Player_${Math.random().toString(36).substr(2, 6)}`;
     document.getElementById('username-input').classList.add('hidden');
-    document.getElementById('ui-overlay').classList.remove('hidden');
-    init();
+    document.getElementById('loading-screen').classList.remove('hidden');
+    loadingStartTime = Date.now();
+    modelsLoaded = false;
+    serverConnected = false;
+    
+    updateLoadingProgress(10, 'Loading character models...');
+    
+    // Preload models with progress tracking
+    try {
+        const loader = createGLTFLoader();
+        
+        // Load walk model with progress
+        const walkPromise = new Promise((resolve, reject) => {
+            loader.load(
+                'models/walk.glb',
+                (gltf) => {
+                    walkGLTF = gltf;
+                    updateLoadingProgress(50, 'Loading animations...');
+                    resolve(gltf);
+                },
+                (progress) => {
+                    if (progress.total > 0) {
+                        const percent = 10 + (progress.loaded / progress.total) * 40;
+                        updateLoadingProgress(percent, 'Loading character model...');
+                    }
+                },
+                reject
+            );
+        });
+        
+        // Load idle model with progress
+        const idlePromise = new Promise((resolve, reject) => {
+            loader.load(
+                'models/idle.glb',
+                (gltf) => {
+                    idleGLTF = gltf;
+                    updateLoadingProgress(80, 'Connecting to server...');
+                    resolve(gltf);
+                },
+                (progress) => {
+                    if (progress.total > 0) {
+                        const percent = 50 + (progress.loaded / progress.total) * 30;
+                        updateLoadingProgress(percent, 'Loading idle animation...');
+                    }
+                },
+                reject
+            );
+        });
+        
+        await Promise.all([walkPromise, idlePromise]);
+        modelsLoaded = true;
+        updateLoadingProgress(90, 'Initializing game...');
+        
+        // Initialize game
+        init();
+        
+        // Check if we can hide loading screen
+        if (serverConnected) {
+            updateLoadingProgress(100, 'Ready!');
+            hideLoadingScreen();
+        }
+    } catch (error) {
+        console.error('Error loading models:', error);
+        updateLoadingProgress(100, 'Error loading models');
+        setTimeout(() => {
+            init(); // Still try to initialize
+            hideLoadingScreen();
+        }, 1000);
+    }
 });
 
 document.getElementById('username-field').addEventListener('keypress', (e) => {
@@ -153,6 +236,8 @@ function init() {
     
     socket.on('connect', () => {
         console.log('Connected to server');
+        serverConnected = true;
+        updateLoadingProgress(95, 'Connected!');
         
         // Send player join event
         socket.emit('playerJoin', {
@@ -161,6 +246,12 @@ function init() {
             rotation: { x: 0, y: 0, z: 0 },
             isMoving: false
         });
+        
+        // Check if we can hide loading screen
+        if (modelsLoaded) {
+            updateLoadingProgress(100, 'Ready!');
+            hideLoadingScreen();
+        }
     });
     
     // Receive current players
