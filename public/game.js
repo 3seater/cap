@@ -6,12 +6,74 @@ let socket = null;
 let username = '';
 let isInitialized = false;
 let clock = new THREE.Clock(); // For animation timing
+let walkGLTF = null;
+let idleGLTF = null;
 
 // Movement state
 const keys = {};
 const moveSpeed = 0.05; // Reduced by 50% to match animation speed
 const rotationSpeed = 0.05;
 let pitch = 0; // Camera pitch (up/down look)
+
+function createGLTFLoader() {
+    const loader = new THREE.GLTFLoader();
+    try {
+        if (typeof THREE.DRACOLoader !== 'undefined') {
+            const dracoLoader = new THREE.DRACOLoader();
+            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
+            loader.setDRACOLoader(dracoLoader);
+        }
+    } catch (e) {
+        console.warn('DRACO loader not available, models will load without compression:', e);
+    }
+    return loader;
+}
+
+function loadWalkGLTF() {
+    if (walkGLTF) {
+        return Promise.resolve(walkGLTF);
+    }
+    const loader = createGLTFLoader();
+    console.time('walk.glb load');
+    return new Promise((resolve, reject) => {
+        loader.load(
+            'models/walk.glb',
+            (gltf) => {
+                console.timeEnd('walk.glb load');
+                walkGLTF = gltf;
+                resolve(gltf);
+            },
+            undefined,
+            (error) => {
+                console.timeEnd('walk.glb load');
+                reject(error);
+            }
+        );
+    });
+}
+
+function loadIdleGLTF() {
+    if (idleGLTF) {
+        return Promise.resolve(idleGLTF);
+    }
+    const loader = createGLTFLoader();
+    console.time('idle.glb load');
+    return new Promise((resolve, reject) => {
+        loader.load(
+            'models/idle.glb',
+            (gltf) => {
+                console.timeEnd('idle.glb load');
+                idleGLTF = gltf;
+                resolve(gltf);
+            },
+            undefined,
+            (error) => {
+                console.timeEnd('idle.glb load');
+                reject(error);
+            }
+        );
+    });
+}
 
 // Initialize username input
 document.getElementById('join-button').addEventListener('click', () => {
@@ -594,7 +656,7 @@ function addOtherPlayer(playerData) {
         'models/walk.glb',
         (gltf) => {
             console.log('Character model loaded successfully for:', playerData.username);
-            const model = gltf.scene.clone(true); // Clone the model for each player
+            const model = THREE.SkeletonUtils.clone(gltf.scene); // Proper clone for skinned meshes
             
             // Enable shadows
             model.traverse((child) => {
