@@ -325,8 +325,26 @@ function init() {
         if (isPointerLocked) {
             const yaw = -e.movementX * 0.002;
             player.mesh.rotation.y += yaw;
-            pitch += e.movementY * 0.002; // Reversed: mouse up = look up, mouse down = look down
-            pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch)); // Limit pitch to -90 to +90 degrees
+            
+            // Smooth pitch with soft limits to prevent glitchy rotation at extremes
+            const pitchDelta = e.movementY * 0.002;
+            const newPitch = pitch + pitchDelta;
+            const maxPitch = Math.PI / 2 - 0.1; // Slightly less than 90 degrees to prevent issues
+            const minPitch = -Math.PI / 2 + 0.1;
+            
+            // Apply soft limit - reduce sensitivity near limits
+            if (newPitch > maxPitch) {
+                const excess = newPitch - maxPitch;
+                pitch = maxPitch + excess * 0.1; // Dampen movement near limit
+            } else if (newPitch < minPitch) {
+                const excess = newPitch - minPitch;
+                pitch = minPitch + excess * 0.1; // Dampen movement near limit
+            } else {
+                pitch = newPitch;
+            }
+            
+            // Hard clamp as final safety
+            pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch));
         }
     });
     
@@ -980,14 +998,19 @@ function updateMovement() {
     );
     
     // Calculate camera position - orbit around head based on yaw and pitch
+    // Use spherical coordinates to avoid gimbal lock issues
     const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
     
     // First rotate around Y axis (yaw) based on character rotation
     cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
     
-    // Then rotate around X axis (pitch) - this creates the up/down look
+    // Calculate right vector for pitch rotation (perpendicular to forward direction)
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
     const rightVector = new THREE.Vector3(1, 0, 0);
     rightVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
+    
+    // Apply pitch rotation smoothly
     cameraOffset.applyAxisAngle(rightVector, pitch);
     
     // Add base height offset
@@ -995,7 +1018,7 @@ function updateMovement() {
     
     camera.position.copy(pivotPoint).add(cameraOffset);
     
-    // Always look at the head pivot point
+    // Look at the head pivot point with smooth rotation
     camera.lookAt(pivotPoint);
 }
 
