@@ -565,10 +565,13 @@ function addOtherPlayer(playerData) {
     
     // Load character model from walk.glb for other players
     const loader = new THREE.GLTFLoader();
+    console.log('Loading character model for other player:', playerData.username);
     loader.load(
         'models/walk.glb',
         (gltf) => {
-            const model = gltf.scene.clone(); // Clone the model for each player
+            console.log('Character model loaded successfully for:', playerData.username);
+            // Clone the entire scene to avoid sharing references
+            const model = gltf.scene.clone(true); // Deep clone to clone all children
             
             // Enable shadows
             model.traverse((child) => {
@@ -595,6 +598,7 @@ function addOtherPlayer(playerData) {
             model.position.y = -box.min.y * scale;
             
             group.add(model);
+            console.log('Model added to group for:', playerData.username, 'Group children:', group.children.length);
             
             // Create animation mixer for other players
             const mixer = new THREE.AnimationMixer(model);
@@ -652,16 +656,25 @@ function addOtherPlayer(playerData) {
                 );
             }
         },
-        undefined,
+        (progress) => {
+            console.log('Loading other player model:', playerData.username, (progress.loaded / progress.total * 100).toFixed(0) + '%');
+        },
         (error) => {
-            console.error('Error loading character for other player:', error);
-            // Fallback to placeholder
+            console.error('Error loading character for other player:', playerData.username, error);
+            // Fallback to placeholder - make it visible so we know the function is working
             const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
             const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xe24a4a });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
             body.position.y = 0.75;
             body.castShadow = true;
             group.add(body);
+            
+            const headGeometry = new THREE.SphereGeometry(0.25, 8, 8);
+            const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 1.75;
+            head.castShadow = true;
+            group.add(head);
             
             const headGeometry = new THREE.SphereGeometry(0.25, 8, 8);
             const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
