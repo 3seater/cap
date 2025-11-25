@@ -158,7 +158,8 @@ function init() {
         socket.emit('playerJoin', {
             username: username,
             position: { x: 0, y: 0, z: 0 },
-            rotation: { x: 0, y: 0, z: 0 }
+            rotation: { x: 0, y: 0, z: 0 },
+            isMoving: false
         });
     });
     
@@ -184,21 +185,16 @@ function init() {
     socket.on('playerMoved', (data) => {
         const otherPlayer = otherPlayers.get(data.id);
         if (otherPlayer) {
-            const oldPos = otherPlayer.mesh.position.clone();
             otherPlayer.mesh.position.set(data.position.x, data.position.y, data.position.z);
             otherPlayer.mesh.rotation.y = data.rotation.y;
             
-            // Check if player is moving (position changed)
-            const isMoving = oldPos.distanceTo(otherPlayer.mesh.position) > 0.01;
-            
-            // Switch animations based on movement
-            if (isMoving && !otherPlayer.isMoving && otherPlayer.mixer && otherPlayer.walkAction) {
-                fadeToAction(otherPlayer, otherPlayer.walkAction);
-                otherPlayer.isMoving = true;
-            } else if (!isMoving && otherPlayer.isMoving && otherPlayer.mixer && otherPlayer.idleAction) {
-                // Switch to idle animation when not moving
-                fadeToAction(otherPlayer, otherPlayer.idleAction);
-                otherPlayer.isMoving = false;
+            if (typeof data.isMoving === 'boolean') {
+                if (data.isMoving && !otherPlayer.isMoving && otherPlayer.walkAction) {
+                    fadeToAction(otherPlayer, otherPlayer.walkAction);
+                } else if (!data.isMoving && otherPlayer.isMoving && otherPlayer.idleAction) {
+                    fadeToAction(otherPlayer, otherPlayer.idleAction);
+                }
+                otherPlayer.isMoving = data.isMoving;
             }
         }
     });
@@ -441,24 +437,10 @@ function createPlayerCharacter() {
     group.position.set(0, 0, 0);
     scene.add(group);
     
-    // Load the character model from walk.glb (using only this file)
-    const loader = new THREE.GLTFLoader();
-    // Set up DRACO loader for compressed models (optional - won't break if not available)
-    try {
-        if (typeof THREE.DRACOLoader !== 'undefined') {
-            const dracoLoader = new THREE.DRACOLoader();
-            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-            loader.setDRACOLoader(dracoLoader);
-        }
-    } catch (e) {
-        console.warn('DRACO loader not available, models will load without compression:', e);
-    }
-    loader.load(
-        'models/walk.glb',
-        (gltf) => {
-            const model = gltf.scene;
+    Promise.all([loadWalkGLTF(), loadIdleGLTF()])
+        .then(([walkGltf, idleGltf]) => {
+            const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
-            // Enable shadows on all meshes
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
@@ -466,99 +448,66 @@ function createPlayerCharacter() {
                 }
             });
             
-            // Adjust scale and position based on your model
-            // You may need to tweak these values
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = 3.5 / maxDimension; // Scale to approximately 3.5 units tall (much bigger)
+            const scale = 3.5 / maxDimension;
             
             model.scale.set(scale, scale, scale);
-            
-            // Character faces away from camera (positive Z direction)
             model.rotation.y = 0;
             
-            // Center the model
             const center = box.getCenter(new THREE.Vector3());
             model.position.sub(center);
-            model.position.y = -box.min.y * scale; // Place on ground
+            model.position.y = -box.min.y * scale;
             
             group.add(model);
             
-            // Create animation mixer for the model
             const mixer = new THREE.AnimationMixer(model);
             let walkAction = null;
+            let idleAction = null;
             let currentAction = null;
             
-            // Get animation from the walk.glb file
-            if (gltf.animations && gltf.animations.length > 0) {
-                const walkClip = gltf.animations[0];
-                
-                // Create the action with the animation
+            if (walkGltf.animations && walkGltf.animations.length > 0) {
+                const walkClip = walkGltf.animations[0];
                 walkAction = mixer.clipAction(walkClip);
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
-                walkAction.stop(); // Make sure walk doesn't play by default
-                
-                console.log('Walk animation loaded from walk.glb:', walkClip.name);
+                walkAction.stop();
             }
             
-            // Update username sprite position based on model height
+            if (idleGltf.animations && idleGltf.animations.length > 0) {
+                const idleClip = idleGltf.animations[0];
+                idleAction = mixer.clipAction(idleClip);
+                idleAction.setLoop(THREE.LoopRepeat);
+                idleAction.reset();
+                idleAction.play();
+                currentAction = idleAction;
+            } else if (walkAction) {
+                walkAction.play();
+                currentAction = walkAction;
+            }
+            
             if (size.y > 0) {
                 sprite.position.y = (size.y * scale) + 0.5;
             }
             
-            // Store animation data in player object
             player.mixer = mixer;
             player.walkAction = walkAction;
-            player.idleAction = null;
-            player.currentAction = null; // No action playing yet
-            player.isMoving = false; // Start with idle
-            
-            // Load idle animation from separate file FIRST
-            loader.load(
-                'models/idle.glb',
-                (idleGltf) => {
-                    // Get idle animation from the idle GLB file
-                    if (idleGltf.animations && idleGltf.animations.length > 0) {
-                        const idleClip = idleGltf.animations[0];
-                        const idleAction = mixer.clipAction(idleClip);
-                        idleAction.setLoop(THREE.LoopRepeat);
-                        idleAction.reset();
-                        
-                        player.idleAction = idleAction;
-                        
-                        // Start with idle animation immediately
-                        if (idleAction) {
-                            idleAction.play();
-                            player.currentAction = idleAction;
-                            console.log('Started with idle animation');
-                        }
-                        
-                        console.log('Idle animation loaded from idle.glb:', idleClip.name);
-                    }
-                },
-                undefined,
-                (error) => {
-                    console.log('Idle animation file not found. Character will use walk animation.');
-                }
-            );
-        },
-        (progress) => {
-            console.log('Loading character:', (progress.loaded / progress.total * 100).toFixed(0) + '%');
-        },
-        (error) => {
+            player.idleAction = idleAction;
+            player.currentAction = currentAction;
+            player.isMoving = false;
+        })
+        .catch((error) => {
             console.error('Error loading character model:', error);
-            // Fallback to placeholder if model fails to load
             createPlaceholderCharacter(group);
-        }
-    );
+        });
     
     player = {
         mesh: group,
         usernameSprite: sprite,
         position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 }
+        rotation: { x: 0, y: 0, z: 0 },
+        isMoving: false
     };
     
     // Third-person camera setup - behind the character
@@ -639,26 +588,10 @@ function addOtherPlayer(playerData) {
     group.rotation.y = playerData.rotation.y;
     scene.add(group);
     
-    // Load character model from walk.glb for other players
-    const loader = new THREE.GLTFLoader();
-    // Set up DRACO loader for compressed models (optional - won't break if not available)
-    try {
-        if (typeof THREE.DRACOLoader !== 'undefined') {
-            const dracoLoader = new THREE.DRACOLoader();
-            dracoLoader.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/');
-            loader.setDRACOLoader(dracoLoader);
-        }
-    } catch (e) {
-        console.warn('DRACO loader not available, models will load without compression:', e);
-    }
-    console.log('Loading character model for other player:', playerData.username);
-    loader.load(
-        'models/walk.glb',
-        (gltf) => {
-            console.log('Character model loaded successfully for:', playerData.username);
-            const model = THREE.SkeletonUtils.clone(gltf.scene); // Proper clone for skinned meshes
+    Promise.all([loadWalkGLTF(), loadIdleGLTF()])
+        .then(([walkGltf, idleGltf]) => {
+            const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
-            // Enable shadows
             model.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
@@ -666,18 +599,14 @@ function addOtherPlayer(playerData) {
                 }
             });
             
-            // Use same scale as player character
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = 3.5 / maxDimension; // Same bigger scale
+            const scale = 3.5 / maxDimension;
             
             model.scale.set(scale, scale, scale);
-            
-            // Character faces away from camera (positive Z direction)
             model.rotation.y = 0;
             
-            // Center the model
             const center = box.getCenter(new THREE.Vector3());
             model.position.sub(center);
             model.position.y = -box.min.y * scale;
@@ -685,68 +614,50 @@ function addOtherPlayer(playerData) {
             group.add(model);
             console.log('Model added to group for:', playerData.username, 'Group children:', group.children.length);
             
-            // Create animation mixer for other players
             const mixer = new THREE.AnimationMixer(model);
             let walkAction = null;
+            let idleAction = null;
             let currentAction = null;
             
-            // Get animation from the walk.glb file (same file as model)
-            if (gltf.animations && gltf.animations.length > 0) {
-                const walkClip = gltf.animations[0];
+            if (walkGltf.animations && walkGltf.animations.length > 0) {
+                const walkClip = walkGltf.animations[0];
                 walkAction = mixer.clipAction(walkClip);
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
-                walkAction.stop(); // Make sure walk doesn't play by default
+                walkAction.stop();
             }
             
-            // Update username sprite position
+            if (idleGltf.animations && idleGltf.animations.length > 0) {
+                const idleClip = idleGltf.animations[0];
+                idleAction = mixer.clipAction(idleClip);
+                idleAction.setLoop(THREE.LoopRepeat);
+                idleAction.reset();
+                idleAction.play();
+                currentAction = idleAction;
+            } else if (walkAction) {
+                walkAction.play();
+                currentAction = walkAction;
+            }
+            
             if (size.y > 0) {
                 sprite.position.y = (size.y * scale) + 0.5;
             }
             
-            // Store animation data
             const otherPlayer = otherPlayers.get(playerData.id);
             if (otherPlayer) {
                 otherPlayer.mixer = mixer;
                 otherPlayer.walkAction = walkAction;
-                otherPlayer.idleAction = null;
-                otherPlayer.currentAction = null; // No action playing yet
-                otherPlayer.isMoving = false; // Start with idle
+                otherPlayer.idleAction = idleAction;
+                otherPlayer.currentAction = currentAction;
+                otherPlayer.isMoving = Boolean(playerData.isMoving);
                 
-                // Load idle animation for other players FIRST
-                loader.load(
-                    'models/idle.glb',
-                    (idleGltf) => {
-                        if (idleGltf.animations && idleGltf.animations.length > 0) {
-                            const idleClip = idleGltf.animations[0];
-                            const idleAction = mixer.clipAction(idleClip);
-                            idleAction.setLoop(THREE.LoopRepeat);
-                            idleAction.reset();
-                            
-                            if (otherPlayer) {
-                                otherPlayer.idleAction = idleAction;
-                                // Start with idle immediately
-                                if (idleAction) {
-                                    idleAction.play();
-                                    otherPlayer.currentAction = idleAction;
-                                    console.log('Other player started with idle:', playerData.username);
-                                }
-                            }
-                        }
-                    },
-                    undefined,
-                    (error) => {
-                        // Idle not found, that's okay
-                    }
-                );
+                if (otherPlayer.isMoving && walkAction) {
+                    fadeToAction(otherPlayer, walkAction, 0.15);
+                }
             }
-        },
-        (progress) => {
-            console.log('Loading other player model:', playerData.username, (progress.loaded / progress.total * 100).toFixed(0) + '%');
-        },
-        (error) => {
+        })
+        .catch((error) => {
             console.error('Error loading character for other player:', playerData.username, error);
-            // Fallback to placeholder - make it visible so we know the function is working
             const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
             const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xe24a4a });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
@@ -760,13 +671,13 @@ function addOtherPlayer(playerData) {
             head.position.y = 1.75;
             head.castShadow = true;
             group.add(head);
-        }
-    );
+        });
     
     otherPlayers.set(playerData.id, {
         mesh: group,
         usernameSprite: sprite,
-        username: playerData.username
+        username: playerData.username,
+        isMoving: Boolean(playerData.isMoving)
     });
 }
 
@@ -816,38 +727,41 @@ function updateMovement() {
     }
     // A and D keys disabled (no strafing)
     
-    // Normalize and apply rotation
-    if (direction.length() > 0) {
+    const wantsToMove = direction.lengthSq() > 0;
+    let stateChanged = false;
+    
+    if (wantsToMove) {
         direction.normalize();
         direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
         
         player.mesh.position.x += direction.x * moveSpeed;
         player.mesh.position.z += direction.z * moveSpeed;
         
-        // Update player position
-        player.position.x = player.mesh.position.x;
-        player.position.y = player.mesh.position.y;
-        player.position.z = player.mesh.position.z;
-        player.rotation.y = player.mesh.rotation.y;
-        
-        // Switch to walk animation if not already walking
         if (player.mixer && player.walkAction && !player.isMoving) {
             fadeToAction(player, player.walkAction);
             player.isMoving = true;
+            stateChanged = true;
         }
-        
-        // Send movement update to server
-        if (socket && socket.connected) {
+    } else if (player.mixer && player.idleAction && player.isMoving) {
+        fadeToAction(player, player.idleAction);
+        player.isMoving = false;
+        stateChanged = true;
+    }
+    
+    // Update player position/rotation references
+    player.position.x = player.mesh.position.x;
+    player.position.y = player.mesh.position.y;
+    player.position.z = player.mesh.position.z;
+    player.rotation.y = player.mesh.rotation.y;
+    
+    // Send updates only when moving or when animation state changed
+    if (socket && socket.connected) {
+        if (wantsToMove || stateChanged) {
             socket.emit('playerMove', {
-                position: player.position,
-                rotation: player.rotation
+                position: { ...player.position },
+                rotation: { ...player.rotation },
+                isMoving: player.isMoving
             });
-        }
-    } else {
-        // Switch to idle animation when not moving
-        if (player.mixer && player.idleAction && player.isMoving) {
-            fadeToAction(player, player.idleAction);
-            player.isMoving = false;
         }
     }
     

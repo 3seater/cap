@@ -40,7 +40,8 @@ io.on('connection', (socket) => {
       id: socket.id,
       username: playerData.username || `Player_${socket.id.substring(0, 6)}`,
       position: playerData.position || { x: 0, y: 0, z: 0 },
-      rotation: playerData.rotation || { x: 0, y: 0, z: 0 }
+      rotation: playerData.rotation || { x: 0, y: 0, z: 0 },
+      isMoving: playerData.isMoving || false
     };
     
     players.set(socket.id, player);
@@ -57,12 +58,14 @@ io.on('connection', (socket) => {
     if (player) {
       player.position = data.position;
       player.rotation = data.rotation;
+      player.isMoving = !!data.isMoving;
       
       // Broadcast movement to all other players
       socket.broadcast.emit('playerMoved', {
         id: socket.id,
         position: data.position,
-        rotation: data.rotation
+        rotation: data.rotation,
+        isMoving: player.isMoving
       });
     }
   });
