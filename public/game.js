@@ -481,7 +481,7 @@ function updateDustParticles() {
 
 function createFloatingHat() {
     const hatGroup = new THREE.Group();
-    hatGroup.position.set(0, 12, 0); // Float in the air
+    hatGroup.position.set(0, 6, 0); // Float lower to the ground
     
     // Create glowing aura using point light
     const glowLight = new THREE.PointLight(0x1047d2, 2, 15);
@@ -550,11 +550,11 @@ function createFloatingHat() {
                 }
             });
             
-            // Scale the hat appropriately
+            // Scale the hat appropriately - 5 times bigger
             const box = new THREE.Box3().setFromObject(hatModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = 1.5 / maxDimension;
+            const scale = 7.5 / maxDimension; // 5 times bigger (1.5 * 5 = 7.5)
             hatModel.scale.set(scale, scale, scale);
             
             // Center the hat
