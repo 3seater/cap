@@ -11,7 +11,7 @@ let idleGLTF = null;
 
 // Movement state
 const keys = {};
-const moveSpeed = 0.05; // Reduced by 50% to match animation speed
+const moveSpeed = 0.02; // Reduced by 60% (40% of original speed)
 const rotationSpeed = 0.05;
 let pitch = 0; // Camera pitch (up/down look)
 
@@ -498,10 +498,9 @@ function createPlayerCharacter() {
                 walkAction = mixer.clipAction(walkClip);
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
+                walkAction.stop(); // Make sure walk doesn't play by default
                 
                 console.log('Walk animation loaded from walk.glb:', walkClip.name);
-                
-                // Don't play walk by default - wait for idle to load
             }
             
             // Update username sprite position based on model height
@@ -513,10 +512,10 @@ function createPlayerCharacter() {
             player.mixer = mixer;
             player.walkAction = walkAction;
             player.idleAction = null;
-            player.currentAction = currentAction;
+            player.currentAction = null; // No action playing yet
             player.isMoving = false; // Start with idle
             
-            // Load idle animation from separate file
+            // Load idle animation from separate file FIRST
             loader.load(
                 'models/idle.glb',
                 (idleGltf) => {
@@ -529,10 +528,11 @@ function createPlayerCharacter() {
                         
                         player.idleAction = idleAction;
                         
-                        // Start with idle animation
+                        // Start with idle animation immediately
                         if (idleAction) {
                             idleAction.play();
                             player.currentAction = idleAction;
+                            console.log('Started with idle animation');
                         }
                         
                         console.log('Idle animation loaded from idle.glb:', idleClip.name);
@@ -696,8 +696,7 @@ function addOtherPlayer(playerData) {
                 walkAction = mixer.clipAction(walkClip);
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
-                
-                // Don't play walk by default - wait for idle to load
+                walkAction.stop(); // Make sure walk doesn't play by default
             }
             
             // Update username sprite position
@@ -711,10 +710,10 @@ function addOtherPlayer(playerData) {
                 otherPlayer.mixer = mixer;
                 otherPlayer.walkAction = walkAction;
                 otherPlayer.idleAction = null;
-                otherPlayer.currentAction = currentAction;
+                otherPlayer.currentAction = null; // No action playing yet
                 otherPlayer.isMoving = false; // Start with idle
                 
-                // Load idle animation for other players
+                // Load idle animation for other players FIRST
                 loader.load(
                     'models/idle.glb',
                     (idleGltf) => {
@@ -726,10 +725,11 @@ function addOtherPlayer(playerData) {
                             
                             if (otherPlayer) {
                                 otherPlayer.idleAction = idleAction;
-                                // Start with idle
+                                // Start with idle immediately
                                 if (idleAction) {
                                     idleAction.play();
                                     otherPlayer.currentAction = idleAction;
+                                    console.log('Other player started with idle:', playerData.username);
                                 }
                             }
                         }
