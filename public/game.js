@@ -226,6 +226,9 @@ function init() {
     // Create dust particles
     createDustParticles();
     
+    // Create floating hat with glowing aura
+    createFloatingHat();
+    
     // Create placeholder character (will be replaced with user's model)
     createPlayerCharacter();
     
@@ -365,6 +368,7 @@ function createRoom() {
 
 // Global variable to store dust particles for animation
 let dustParticles = [];
+let floatingHat = null; // Store hat reference for animation
 
 function createDustParticles() {
     const particleCount = 200; // Number of dust particles
@@ -913,6 +917,13 @@ function animate() {
     
     // Update dust particles animation
     updateDustParticles();
+    
+    // Update floating hat rotation
+    if (floatingHat) {
+        floatingHat.rotation.y += delta * 0.3; // Slow rotation
+        // Gentle floating motion
+        floatingHat.position.y = 12 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
+    }
     
     renderer.render(scene, camera);
 }
