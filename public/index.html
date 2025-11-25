@@ -166,11 +166,10 @@
         }
         
         .loading-spinner {
-            font-size: 64px;
+            font-size: 80px;
             animation: spin 2s linear infinite;
-            margin-bottom: 20px;
-            filter: hue-rotate(200deg) saturate(1.5) brightness(0.9);
             display: inline-block;
+            filter: hue-rotate(200deg) saturate(2) brightness(1.1);
         }
         
         @keyframes spin {
@@ -178,33 +177,10 @@
             100% { transform: rotate(360deg); }
         }
         
-        #loading-screen h2 {
-            font-size: 24px;
-            font-weight: 500;
-            margin: 0 0 10px 0;
-            letter-spacing: 1px;
-        }
-        
-        #loading-screen p {
-            font-size: 14px;
-            color: rgba(16, 71, 210, 0.7);
-            margin: 0;
-        }
-        
+        #loading-screen h2,
+        #loading-screen p,
         #loading-progress {
-            width: 300px;
-            height: 2px;
-            background: rgba(16, 71, 210, 0.2);
-            margin-top: 20px;
-            border-radius: 1px;
-            overflow: hidden;
-        }
-        
-        #loading-progress-bar {
-            height: 100%;
-            background: #1047d2;
-            width: 0%;
-            transition: width 0.3s ease;
+            display: none;
         }
     </style>
 </head>
@@ -218,11 +194,6 @@
     
     <div id="loading-screen" class="hidden">
         <div class="loading-spinner">🧢</div>
-        <h2>Loading...</h2>
-        <p id="loading-text">Connecting to server</p>
-        <div id="loading-progress">
-            <div id="loading-progress-bar"></div>
-        </div>
     </div>
     
     <div id="canvas-container"></div>

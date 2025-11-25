@@ -72,10 +72,7 @@ let modelsLoaded = false;
 let serverConnected = false;
 
 function updateLoadingProgress(percent, text) {
-    const progressBar = document.getElementById('loading-progress-bar');
-    const loadingText = document.getElementById('loading-text');
-    if (progressBar) progressBar.style.width = percent + '%';
-    if (loadingText) loadingText.textContent = text;
+    // No text or progress bar shown - just the rotating cap emoji
 }
 
 function hideLoadingScreen() {
