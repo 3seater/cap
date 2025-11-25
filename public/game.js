@@ -79,7 +79,12 @@ function init() {
     createPlayerCharacter();
     
     // Connect to server
-    socket = io();
+    // For local development, use current origin
+    // For production, update this to your server URL (e.g., 'https://your-server.onrender.com')
+    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+        ? '' // Use same origin for local development
+        : process.env.SERVER_URL || ''; // Use environment variable or same origin
+    socket = io(serverUrl);
     
     socket.on('connect', () => {
         console.log('Connected to server');
