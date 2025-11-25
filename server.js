@@ -12,8 +12,15 @@ const io = socketIo(server, {
   }
 });
 
-// Serve static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Enable compression for static files
+const compression = require('compression');
+app.use(compression());
+
+// Serve static files with caching headers
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '1y', // Cache static files for 1 year
+  etag: true
+}));
 
 // Store connected players
 const players = new Map();
