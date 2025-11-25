@@ -725,8 +725,8 @@ function createPlayerCharacter() {
     group.position.set(0, 0, 0);
     scene.add(group);
     
-    Promise.all([loadWalkGLTF(), loadIdleGLTF()])
-        .then(([walkGltf, idleGltf]) => {
+    Promise.all([loadWalkGLTF(), loadIdleGLTF(), loadWalkBackwardsGLTF()])
+        .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
             model.traverse((child) => {
@@ -752,6 +752,7 @@ function createPlayerCharacter() {
             
             const mixer = new THREE.AnimationMixer(model);
             let walkAction = null;
+            let walkBackwardsAction = null;
             let idleAction = null;
             let currentAction = null;
             
@@ -761,6 +762,14 @@ function createPlayerCharacter() {
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
                 walkAction.stop();
+            }
+            
+            if (walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
+                const walkBackwardsClip = walkBackwardsGltf.animations[0];
+                walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
+                walkBackwardsAction.setLoop(THREE.LoopRepeat);
+                walkBackwardsAction.reset();
+                walkBackwardsAction.stop();
             }
             
             if (idleGltf.animations && idleGltf.animations.length > 0) {
