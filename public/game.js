@@ -1027,7 +1027,7 @@ function animate() {
     if (floatingHat) {
         floatingHat.rotation.y += delta * 0.3; // Slow rotation
         // Gentle floating motion
-        floatingHat.position.y = 12 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
+        floatingHat.position.y = 6 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
     }
     
     renderer.render(scene, camera);
