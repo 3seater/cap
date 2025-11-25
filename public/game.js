@@ -8,6 +8,7 @@ let isInitialized = false;
 let clock = new THREE.Clock(); // For animation timing
 let walkGLTF = null;
 let idleGLTF = null;
+let walkBackwardsGLTF = null;
 
 // Movement state
 const keys = {};
@@ -61,6 +62,24 @@ function loadIdleGLTF() {
             'models/idle.glb',
             (gltf) => {
                 idleGLTF = gltf;
+                resolve(gltf);
+            },
+            undefined,
+            reject
+        );
+    });
+}
+
+function loadWalkBackwardsGLTF() {
+    if (walkBackwardsGLTF) {
+        return Promise.resolve(walkBackwardsGLTF);
+    }
+    const loader = createGLTFLoader();
+    return new Promise((resolve, reject) => {
+        loader.load(
+            'models/walkbackwards.glb',
+            (gltf) => {
+                walkBackwardsGLTF = gltf;
                 resolve(gltf);
             },
             undefined,
@@ -763,9 +782,11 @@ function createPlayerCharacter() {
             
             player.mixer = mixer;
             player.walkAction = walkAction;
+            player.walkBackwardsAction = walkBackwardsAction;
             player.idleAction = idleAction;
             player.currentAction = currentAction;
             player.isMoving = false;
+            player.isMovingBackwards = false;
             
             // Update username sprite position after model loads
             if (size.y > 0) {
@@ -774,7 +795,8 @@ function createPlayerCharacter() {
         })
         .catch((error) => {
             console.error('Error loading character model:', error);
-            createPlaceholderCharacter(group);
+            // Don't create placeholder - just log the error
+            // The group will remain empty if model fails to load
         });
     
     player = {
@@ -863,8 +885,8 @@ function addOtherPlayer(playerData) {
     group.rotation.y = playerData.rotation.y;
     scene.add(group);
     
-    Promise.all([loadWalkGLTF(), loadIdleGLTF()])
-        .then(([walkGltf, idleGltf]) => {
+    Promise.all([loadWalkGLTF(), loadIdleGLTF(), loadWalkBackwardsGLTF()])
+        .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
             model.traverse((child) => {
@@ -891,6 +913,7 @@ function addOtherPlayer(playerData) {
             
             const mixer = new THREE.AnimationMixer(model);
             let walkAction = null;
+            let walkBackwardsAction = null;
             let idleAction = null;
             let currentAction = null;
             
@@ -900,6 +923,14 @@ function addOtherPlayer(playerData) {
                 walkAction.setLoop(THREE.LoopRepeat);
                 walkAction.reset();
                 walkAction.stop();
+            }
+            
+            if (walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
+                const walkBackwardsClip = walkBackwardsGltf.animations[0];
+                walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
+                walkBackwardsAction.setLoop(THREE.LoopRepeat);
+                walkBackwardsAction.reset();
+                walkBackwardsAction.stop();
             }
             
             if (idleGltf.animations && idleGltf.animations.length > 0) {
@@ -923,12 +954,18 @@ function addOtherPlayer(playerData) {
             if (otherPlayer) {
                 otherPlayer.mixer = mixer;
                 otherPlayer.walkAction = walkAction;
+                otherPlayer.walkBackwardsAction = walkBackwardsAction;
                 otherPlayer.idleAction = idleAction;
                 otherPlayer.currentAction = currentAction;
                 otherPlayer.isMoving = Boolean(playerData.isMoving);
+                otherPlayer.isMovingBackwards = Boolean(playerData.isMovingBackwards);
                 
-                if (otherPlayer.isMoving && walkAction) {
-                    fadeToAction(otherPlayer, walkAction, 0.15);
+                if (otherPlayer.isMoving) {
+                    if (otherPlayer.isMovingBackwards && walkBackwardsAction) {
+                        fadeToAction(otherPlayer, walkBackwardsAction, 0.15);
+                    } else if (walkAction) {
+                        fadeToAction(otherPlayer, walkAction, 0.15);
+                    }
                 }
             }
         })
@@ -992,6 +1029,7 @@ function updateMovement() {
     if (!player) return;
     
     const direction = new THREE.Vector3();
+    let isMovingBackwards = false;
     
     // Calculate movement direction based on player rotation
     // Only W and S for forward/backward (strafe disabled)
@@ -1000,6 +1038,7 @@ function updateMovement() {
     }
     if (keys['s']) {
         direction.z -= 1; // Backward is now negative Z
+        isMovingBackwards = true;
     }
     // A and D keys disabled (no strafing)
     
@@ -1013,14 +1052,41 @@ function updateMovement() {
         player.mesh.position.x += direction.x * moveSpeed;
         player.mesh.position.z += direction.z * moveSpeed;
         
-        if (player.mixer && player.walkAction && !player.isMoving) {
-            fadeToAction(player, player.walkAction);
-            player.isMoving = true;
-            stateChanged = true;
+        // Use walk backwards animation when moving backwards
+        if (isMovingBackwards) {
+            if (player.mixer && player.walkBackwardsAction) {
+                // Stop forward walk if it's playing
+                if (player.walkAction && player.walkAction.isRunning()) {
+                    player.walkAction.stop();
+                }
+                // Start backwards walk if not already playing
+                if (!player.isMovingBackwards || !player.walkBackwardsAction.isRunning()) {
+                    fadeToAction(player, player.walkBackwardsAction);
+                    player.isMovingBackwards = true;
+                    player.isMoving = true;
+                    stateChanged = true;
+                }
+            }
+        } else {
+            // Use forward walk animation
+            if (player.mixer && player.walkAction) {
+                // Stop backwards walk if it's playing
+                if (player.walkBackwardsAction && player.walkBackwardsAction.isRunning()) {
+                    player.walkBackwardsAction.stop();
+                }
+                // Start forward walk if not already playing
+                if (!player.isMoving || player.isMovingBackwards) {
+                    fadeToAction(player, player.walkAction);
+                    player.isMoving = true;
+                    player.isMovingBackwards = false;
+                    stateChanged = true;
+                }
+            }
         }
-    } else if (player.mixer && player.idleAction && player.isMoving) {
+    } else if (player.mixer && player.idleAction && (player.isMoving || player.isMovingBackwards)) {
         fadeToAction(player, player.idleAction);
         player.isMoving = false;
+        player.isMovingBackwards = false;
         stateChanged = true;
     }
     
@@ -1036,7 +1102,8 @@ function updateMovement() {
             socket.emit('playerMove', {
                 position: { ...player.position },
                 rotation: { ...player.rotation },
-                isMoving: player.isMoving
+                isMoving: player.isMoving,
+                isMovingBackwards: player.isMovingBackwards
             });
         }
     }
