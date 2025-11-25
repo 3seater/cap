@@ -788,6 +788,10 @@ function createPlayerCharacter() {
             player.isMoving = false;
             player.isMovingBackwards = false;
             
+            // Ensure walk and walkBackwards actions are stopped initially
+            if (walkAction) walkAction.stop();
+            if (walkBackwardsAction) walkBackwardsAction.stop();
+            
             // Update username sprite position after model loads
             if (size.y > 0) {
                 sprite.position.y = (size.y * scale) + 1.2; // Raised higher above character
@@ -971,19 +975,8 @@ function addOtherPlayer(playerData) {
         })
         .catch((error) => {
             console.error('Error loading character for other player:', playerData.username, error);
-            const bodyGeometry = new THREE.CylinderGeometry(0.3, 0.3, 1.5, 8);
-            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xe24a4a });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.position.y = 0.75;
-            body.castShadow = true;
-            group.add(body);
-            
-            const headGeometry = new THREE.SphereGeometry(0.25, 8, 8);
-            const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.y = 1.75;
-            head.castShadow = true;
-            group.add(head);
+            // Don't create placeholder - just log the error
+            // The group will remain empty if model fails to load
         });
     
     otherPlayers.set(playerData.id, {
