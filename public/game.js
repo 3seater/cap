@@ -94,11 +94,16 @@ function hideLoadingScreen() {
 // Initialize username input
 document.getElementById('join-button').addEventListener('click', async () => {
     username = document.getElementById('username-field').value.trim() || `Player_${Math.random().toString(36).substr(2, 6)}`;
+    
+    // Hide username input and show loading screen immediately
     document.getElementById('username-input').classList.add('hidden');
     document.getElementById('loading-screen').classList.remove('hidden');
     loadingStartTime = Date.now();
     modelsLoaded = false;
     serverConnected = false;
+    
+    // Small delay to ensure loading screen is visible
+    await new Promise(resolve => setTimeout(resolve, 50));
     
     updateLoadingProgress(10, 'Loading character models...');
     
