@@ -1062,7 +1062,12 @@ function updatePlayerCount() {
 
 // Helper function to fade between animations (works for both player and other players)
 function fadeToAction(character, newAction, duration = 0.5) {
-    if (!character || !character.mixer || !newAction) return;
+    if (!character || !character.mixer || !newAction) {
+        if (!newAction) {
+            console.warn('fadeToAction: newAction is null or undefined');
+        }
+        return;
+    }
     
     const oldAction = character.currentAction;
     
@@ -1078,6 +1083,13 @@ function fadeToAction(character, newAction, duration = 0.5) {
         newAction.setEffectiveTimeScale(1);
         newAction.setEffectiveWeight(0); // Start at 0 weight
         newAction.enabled = true;
+        
+        // Make sure the action is properly synced with the mixer
+        if (!newAction.getClip()) {
+            console.error('fadeToAction: Animation clip is missing');
+            return;
+        }
+        
         newAction.play();
         // Stronger fade in
         newAction.fadeIn(duration);
