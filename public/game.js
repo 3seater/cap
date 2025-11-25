@@ -722,13 +722,6 @@ function addOtherPlayer(playerData) {
             head.position.y = 1.75;
             head.castShadow = true;
             group.add(head);
-            
-            const headGeometry = new THREE.SphereGeometry(0.25, 8, 8);
-            const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-            const head = new THREE.Mesh(headGeometry, headMaterial);
-            head.position.y = 1.75;
-            head.castShadow = true;
-            group.add(head);
         }
     );
     
