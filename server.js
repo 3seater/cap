@@ -59,13 +59,15 @@ io.on('connection', (socket) => {
       player.position = data.position;
       player.rotation = data.rotation;
       player.isMoving = !!data.isMoving;
+      player.isMovingBackwards = !!data.isMovingBackwards;
       
       // Broadcast movement to all other players
       socket.broadcast.emit('playerMoved', {
         id: socket.id,
         position: data.position,
         rotation: data.rotation,
-        isMoving: player.isMoving
+        isMoving: player.isMoving,
+        isMovingBackwards: player.isMovingBackwards
       });
     }
   });

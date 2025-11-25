@@ -277,7 +277,24 @@
             font-size: 80px;
             animation: spin 2s linear infinite;
             display: inline-block;
-            filter: hue-rotate(220deg) saturate(3) brightness(0.9) contrast(1.2);
+            filter: hue-rotate(200deg) saturate(2.5) brightness(1.1) contrast(1.1);
+        }
+        
+        #loading-progress-bar {
+            width: 200px;
+            height: 2px;
+            background: rgba(16, 71, 210, 0.2);
+            border-radius: 1px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        #loading-progress-fill {
+            height: 100%;
+            background: #1047d2;
+            border-radius: 1px;
+            width: 0%;
+            transition: width 0.3s ease;
         }
         
         @keyframes spin {
@@ -302,6 +319,9 @@
     
     <div id="loading-screen" class="hidden">
         <div class="loading-spinner">🧢</div>
+        <div id="loading-progress-bar">
+            <div id="loading-progress-fill"></div>
+        </div>
     </div>
     
     <div id="canvas-container"></div>

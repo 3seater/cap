@@ -95,7 +95,10 @@ let modelsLoaded = false;
 let serverConnected = false;
 
 function updateLoadingProgress(percent, text) {
-    // No text or progress bar shown - just the rotating cap emoji
+    const progressFill = document.getElementById('loading-progress-fill');
+    if (progressFill) {
+        progressFill.style.width = percent + '%';
+    }
 }
 
 function hideLoadingScreen() {
@@ -337,7 +340,7 @@ function init() {
     
     // Chat message received
     socket.on('chatMessage', (data) => {
-        displayChatMessage(data.playerId, data.username, data.message);
+        // Only show in terminal, not above heads
         addMessageToChatLog(data.username, data.message);
     });
     
@@ -725,7 +728,12 @@ function createPlayerCharacter() {
     group.position.set(0, 0, 0);
     scene.add(group);
     
-    Promise.all([loadWalkGLTF(), loadIdleGLTF(), loadWalkBackwardsGLTF()])
+    // Load models - make walkBackwards optional so character still loads if it fails
+    Promise.all([
+        loadWalkGLTF(), 
+        loadIdleGLTF(), 
+        loadWalkBackwardsGLTF().catch(() => null) // Don't fail if walkbackwards fails
+    ])
         .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
@@ -764,7 +772,7 @@ function createPlayerCharacter() {
                 walkAction.stop();
             }
             
-            if (walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
+            if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
                 const walkBackwardsClip = walkBackwardsGltf.animations[0];
                 walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
                 walkBackwardsAction.setLoop(THREE.LoopRepeat);
@@ -867,14 +875,37 @@ function addOtherPlayer(playerData) {
     // Scale context for high DPI
     context.scale(dpr, dpr);
     
-    // Background with subtle border
+    // Background with rounded corners (draw rounded rectangle)
+    const radius = 6; // Rounded corner radius
     context.fillStyle = 'rgba(0, 0, 0, 0.75)';
-    context.fillRect(0, 0, baseWidth, baseHeight);
+    context.beginPath();
+    context.moveTo(radius, 0);
+    context.lineTo(baseWidth - radius, 0);
+    context.quadraticCurveTo(baseWidth, 0, baseWidth, radius);
+    context.lineTo(baseWidth, baseHeight - radius);
+    context.quadraticCurveTo(baseWidth, baseHeight, baseWidth - radius, baseHeight);
+    context.lineTo(radius, baseHeight);
+    context.quadraticCurveTo(0, baseHeight, 0, baseHeight - radius);
+    context.lineTo(0, radius);
+    context.quadraticCurveTo(0, 0, radius, 0);
+    context.closePath();
+    context.fill();
     
-    // Thin blue border
+    // Thin blue border with rounded corners
     context.strokeStyle = '#1047d2';
     context.lineWidth = 1;
-    context.strokeRect(0.5, 0.5, baseWidth - 1, baseHeight - 1);
+    context.beginPath();
+    context.moveTo(radius, 0.5);
+    context.lineTo(baseWidth - radius, 0.5);
+    context.quadraticCurveTo(baseWidth, 0.5, baseWidth, radius + 0.5);
+    context.lineTo(baseWidth, baseHeight - radius - 0.5);
+    context.quadraticCurveTo(baseWidth, baseHeight - 0.5, baseWidth - radius, baseHeight - 0.5);
+    context.lineTo(radius, baseHeight - 0.5);
+    context.quadraticCurveTo(0.5, baseHeight - 0.5, 0.5, baseHeight - radius - 0.5);
+    context.lineTo(0.5, radius + 0.5);
+    context.quadraticCurveTo(0.5, 0.5, radius, 0.5);
+    context.closePath();
+    context.stroke();
     
     // Username text - smaller, cleaner font
     context.fillStyle = '#ffffff';
@@ -888,9 +919,9 @@ function addOtherPlayer(playerData) {
     texture.magFilter = THREE.LinearFilter;
     const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
     const sprite = new THREE.Sprite(spriteMaterial);
-    // Much smaller scale
+    // Make name tags 40% smaller (0.15 * 0.6 = 0.09)
     const aspectRatio = baseWidth / baseHeight;
-    sprite.scale.set(0.15 * aspectRatio, 0.15, 1);
+    sprite.scale.set(0.09 * aspectRatio, 0.09, 1);
     sprite.position.y = 3.2; // Raised higher above character
     group.add(sprite);
     
@@ -898,7 +929,12 @@ function addOtherPlayer(playerData) {
     group.rotation.y = playerData.rotation.y;
     scene.add(group);
     
-    Promise.all([loadWalkGLTF(), loadIdleGLTF(), loadWalkBackwardsGLTF()])
+    // Load models - make walkBackwards optional so character still loads if it fails
+    Promise.all([
+        loadWalkGLTF(), 
+        loadIdleGLTF(), 
+        loadWalkBackwardsGLTF().catch(() => null) // Don't fail if walkbackwards fails
+    ])
         .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
@@ -938,7 +974,7 @@ function addOtherPlayer(playerData) {
                 walkAction.stop();
             }
             
-            if (walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
+            if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
                 const walkBackwardsClip = walkBackwardsGltf.animations[0];
                 walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
                 walkBackwardsAction.setLoop(THREE.LoopRepeat);
@@ -1178,8 +1214,7 @@ function animate() {
         floatingHat.position.y = 6 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
     }
     
-    // Update chat message sprites positions
-    updateChatMessageSprites();
+    // Chat messages now only appear in terminal, not above heads
     
     renderer.render(scene, camera);
 }
@@ -1264,146 +1299,8 @@ function addMessageToChatLog(username, message) {
     }
 }
 
-function displayChatMessage(playerId, username, message) {
-    // Remove existing chat message sprite for this player
-    if (chatMessages.has(playerId)) {
-        const oldSprite = chatMessages.get(playerId);
-        if (oldSprite.parent) {
-            oldSprite.parent.remove(oldSprite);
-        }
-        scene.remove(oldSprite);
-        chatMessages.delete(playerId);
-    }
-    
-    // Find the player's mesh
-    let playerMesh = null;
-    if (playerId === socket.id && player) {
-        playerMesh = player.mesh;
-    } else {
-        const otherPlayer = otherPlayers.get(playerId);
-        if (otherPlayer) {
-            playerMesh = otherPlayer.mesh;
-        }
-    }
-    
-    if (!playerMesh) return;
-    
-    // Create chat message sprite
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    
-    // Set font and measure text
-    const displayText = `${username}: ${message}`;
-    context.font = '400 9px Inter, -apple-system, sans-serif';
-    const textWidth = context.measureText(displayText).width;
-    
-    const baseWidth = Math.max(120, textWidth + 20);
-    const baseHeight = 18;
-    
-    // High resolution canvas
-    canvas.width = baseWidth * dpr;
-    canvas.height = baseHeight * dpr;
-    canvas.style.width = baseWidth + 'px';
-    canvas.style.height = baseHeight + 'px';
-    
-    context.scale(dpr, dpr);
-    
-    // Background
-    context.fillStyle = 'rgba(0, 0, 0, 0.8)';
-    context.fillRect(0, 0, baseWidth, baseHeight);
-    
-    // Blue border
-    context.strokeStyle = '#1047d2';
-    context.lineWidth = 1;
-    context.strokeRect(0.5, 0.5, baseWidth - 1, baseHeight - 1);
-    
-    // Text
-    context.fillStyle = '#ffffff';
-    context.font = '400 9px Inter, -apple-system, sans-serif';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(displayText, baseWidth / 2, baseHeight / 2);
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    const spriteMaterial = new THREE.SpriteMaterial({ map: texture });
-    const sprite = new THREE.Sprite(spriteMaterial);
-    
-    const aspectRatio = baseWidth / baseHeight;
-    sprite.scale.set(0.2 * aspectRatio, 0.2, 1);
-    
-    // Position right below username label
-    // Username is now at y=3.2 (or higher after model loads), so position chat message below it
-    sprite.position.y = 2.5; // Below username label, raised to avoid character
-    sprite.userData.playerId = playerId;
-    sprite.userData.startTime = Date.now();
-    sprite.userData.duration = 5000; // 5 seconds
-    
-    playerMesh.add(sprite);
-    chatMessages.set(playerId, sprite);
-}
-
-function updateChatMessageSprites() {
-    const now = Date.now();
-    const toRemove = [];
-    
-    chatMessages.forEach((sprite, playerId) => {
-        // Check if message should expire
-        if (sprite.userData.startTime && (now - sprite.userData.startTime) > sprite.userData.duration) {
-            toRemove.push(playerId);
-            return;
-        }
-        
-        // Update sprite position to follow player
-        const playerMesh = playerId === socket.id && player ? player.mesh : 
-                          (otherPlayers.get(playerId) ? otherPlayers.get(playerId).mesh : null);
-        
-        if (playerMesh && sprite.parent !== playerMesh) {
-            // Re-parent if needed
-            if (sprite.parent) {
-                sprite.parent.remove(sprite);
-            }
-            playerMesh.add(sprite);
-        }
-        
-        // Position chat message relative to username sprite
-        if (playerMesh) {
-            const usernameSprite = (playerId === socket.id && player ? player.usernameSprite : 
-                                   (otherPlayers.get(playerId) ? otherPlayers.get(playerId).usernameSprite : null));
-            if (usernameSprite) {
-                // Position chat message 0.4 units below username sprite
-                sprite.position.y = usernameSprite.position.y - 0.4;
-            }
-        }
-        
-        // Make sprite face camera
-        if (camera) {
-            sprite.lookAt(camera.position);
-        }
-        
-        // Fade out in last second
-        const elapsed = now - sprite.userData.startTime;
-        const fadeStart = sprite.userData.duration - 1000;
-        if (elapsed > fadeStart) {
-            const fadeProgress = (elapsed - fadeStart) / 1000;
-            sprite.material.opacity = 1 - fadeProgress;
-        }
-    });
-    
-    // Remove expired messages
-    toRemove.forEach(playerId => {
-        const sprite = chatMessages.get(playerId);
-        if (sprite) {
-            scene.remove(sprite);
-            if (sprite.parent) {
-                sprite.parent.remove(sprite);
-            }
-            chatMessages.delete(playerId);
-        }
-    });
-}
+// Chat messages now only appear in terminal, not above heads
+// Removed displayChatMessage and updateChatMessageSprites functions
 
 function escapeHtml(text) {
     const div = document.createElement('div');
