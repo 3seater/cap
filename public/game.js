@@ -479,6 +479,111 @@ function updateDustParticles() {
     });
 }
 
+function createFloatingHat() {
+    const hatGroup = new THREE.Group();
+    hatGroup.position.set(0, 12, 0); // Float in the air
+    
+    // Create glowing aura using point light
+    const glowLight = new THREE.PointLight(0x1047d2, 2, 15);
+    glowLight.position.set(0, 0, 0);
+    hatGroup.add(glowLight);
+    
+    // Create additional aura effect with particles/sprites
+    const createGlowTexture = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const context = canvas.getContext('2d');
+        
+        const centerX = 128;
+        const centerY = 128;
+        const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 128);
+        gradient.addColorStop(0, 'rgba(16, 71, 210, 0.8)');
+        gradient.addColorStop(0.3, 'rgba(16, 71, 210, 0.4)');
+        gradient.addColorStop(0.6, 'rgba(16, 71, 210, 0.2)');
+        gradient.addColorStop(1, 'rgba(16, 71, 210, 0)');
+        
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 256, 256);
+        
+        return canvas;
+    };
+    
+    const glowTexture = new THREE.CanvasTexture(createGlowTexture());
+    glowTexture.needsUpdate = true;
+    
+    // Create multiple glow layers for depth
+    for (let i = 0; i < 3; i++) {
+        const glowSprite = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: glowTexture,
+                transparent: true,
+                opacity: 0.6 - i * 0.15,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            })
+        );
+        const size = 3 + i * 0.5;
+        glowSprite.scale.set(size, size, 1);
+        glowSprite.position.y = 0;
+        hatGroup.add(glowSprite);
+    }
+    
+    // Load hat model from hat/hat.glb
+    const loader = createGLTFLoader();
+    loader.load(
+        'hat/hat.glb',
+        (gltf) => {
+            console.log('Hat model loaded');
+            const hatModel = gltf.scene;
+            
+            // Enable shadows
+            hatModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // Make hat glow
+                    if (child.material) {
+                        child.material.emissive = new THREE.Color(0x1047d2);
+                        child.material.emissiveIntensity = 0.3;
+                    }
+                }
+            });
+            
+            // Scale the hat appropriately
+            const box = new THREE.Box3().setFromObject(hatModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDimension = Math.max(size.x, size.y, size.z);
+            const scale = 1.5 / maxDimension;
+            hatModel.scale.set(scale, scale, scale);
+            
+            // Center the hat
+            const center = box.getCenter(new THREE.Vector3());
+            hatModel.position.sub(center);
+            
+            hatGroup.add(hatModel);
+            floatingHat = hatGroup;
+            scene.add(hatGroup);
+        },
+        undefined,
+        (error) => {
+            console.error('Error loading hat model:', error);
+            // Create placeholder if hat fails to load
+            const hatGeometry = new THREE.ConeGeometry(0.8, 0.6, 8);
+            const hatMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1047d2,
+                emissive: 0x1047d2,
+                emissiveIntensity: 0.5
+            });
+            const hatMesh = new THREE.Mesh(hatGeometry, hatMaterial);
+            hatMesh.rotation.x = Math.PI;
+            hatGroup.add(hatMesh);
+            floatingHat = hatGroup;
+            scene.add(hatGroup);
+        }
+    );
+}
+
 function createPlayerCharacter() {
     const group = new THREE.Group();
     
