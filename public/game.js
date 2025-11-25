@@ -316,12 +316,28 @@ function init() {
             otherPlayer.mesh.rotation.y = data.rotation.y;
             
             if (typeof data.isMoving === 'boolean') {
-                if (data.isMoving && !otherPlayer.isMoving && otherPlayer.walkAction) {
-                    fadeToAction(otherPlayer, otherPlayer.walkAction);
+                if (data.isMoving) {
+                    const isBackwards = data.isMovingBackwards === true;
+                    if (isBackwards && otherPlayer.walkBackwardsAction) {
+                        if (!otherPlayer.isMovingBackwards || otherPlayer.currentAction !== otherPlayer.walkBackwardsAction) {
+                            // Stronger fade when switching directions
+                            const fadeDuration = (otherPlayer.isMoving && !otherPlayer.isMovingBackwards) ? 0.6 : 0.5;
+                            fadeToAction(otherPlayer, otherPlayer.walkBackwardsAction, fadeDuration);
+                        }
+                    } else if (otherPlayer.walkAction) {
+                        if (!otherPlayer.isMoving || otherPlayer.isMovingBackwards || otherPlayer.currentAction !== otherPlayer.walkAction) {
+                            // Stronger fade when switching directions
+                            const fadeDuration = (otherPlayer.isMoving && otherPlayer.isMovingBackwards) ? 0.6 : 0.5;
+                            fadeToAction(otherPlayer, otherPlayer.walkAction, fadeDuration);
+                        }
+                    }
+                    otherPlayer.isMoving = true;
+                    otherPlayer.isMovingBackwards = isBackwards;
                 } else if (!data.isMoving && otherPlayer.isMoving && otherPlayer.idleAction) {
-                    fadeToAction(otherPlayer, otherPlayer.idleAction);
+                    fadeToAction(otherPlayer, otherPlayer.idleAction, 0.5);
+                    otherPlayer.isMoving = false;
+                    otherPlayer.isMovingBackwards = false;
                 }
-                otherPlayer.isMoving = data.isMoving;
             }
         }
     });
