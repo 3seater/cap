@@ -487,15 +487,15 @@ function createDustParticles() {
         
         // Create sprite - smaller particles
         const sprite = new THREE.Sprite(spriteMaterial);
-        const size = Math.random() * 0.2 + 0.1; // Random size between 0.1 and 0.3 (much smaller)
+        const size = Math.random() * 0.15 + 0.05; // Random size between 0.05 and 0.2 (smaller)
         sprite.scale.set(size, size, 1);
         sprite.position.set(x, y, z);
         
-        // Store velocity for animation
+        // Store velocity for animation (15% faster)
         sprite.userData.velocity = {
-            x: (Math.random() - 0.5) * 0.02,
-            y: (Math.random() - 0.5) * 0.01,
-            z: (Math.random() - 0.5) * 0.02
+            x: (Math.random() - 0.5) * 0.02 * 1.15,
+            y: (Math.random() - 0.5) * 0.01 * 1.15,
+            z: (Math.random() - 0.5) * 0.02 * 1.15
         };
         
         scene.add(sprite);
@@ -1255,8 +1255,9 @@ function displayChatMessage(playerId, username, message) {
     const aspectRatio = baseWidth / baseHeight;
     sprite.scale.set(0.2 * aspectRatio, 0.2, 1);
     
-    // Position above username label
-    sprite.position.y = 3.0; // Above username
+    // Position right below username label
+    // Username is typically at y=2.5, so position chat message below it
+    sprite.position.y = 2.0; // Below username label
     sprite.userData.playerId = playerId;
     sprite.userData.startTime = Date.now();
     sprite.userData.duration = 5000; // 5 seconds
