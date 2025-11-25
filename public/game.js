@@ -1011,9 +1011,9 @@ function addOtherPlayer(playerData) {
                 
                 if (otherPlayer.isMoving) {
                     if (otherPlayer.isMovingBackwards && walkBackwardsAction) {
-                        fadeToAction(otherPlayer, walkBackwardsAction, 0.15);
+                        fadeToAction(otherPlayer, walkBackwardsAction, 0.5);
                     } else if (walkAction) {
-                        fadeToAction(otherPlayer, walkAction, 0.15);
+                        fadeToAction(otherPlayer, walkAction, 0.5);
                     }
                 }
             }
@@ -1045,19 +1045,26 @@ function updatePlayerCount() {
 }
 
 // Helper function to fade between animations (works for both player and other players)
-function fadeToAction(character, newAction, duration = 0.3) {
+function fadeToAction(character, newAction, duration = 0.5) {
     if (!character || !character.mixer || !newAction) return;
     
     const oldAction = character.currentAction;
     
     if (oldAction && oldAction !== newAction) {
+        // Stop the old action immediately to prevent glitching
         oldAction.fadeOut(duration);
+        oldAction.enabled = true; // Keep enabled during fade
     }
     
     if (newAction !== oldAction) {
+        // Ensure new action is properly set up
         newAction.reset();
-        newAction.fadeIn(duration);
+        newAction.setEffectiveTimeScale(1);
+        newAction.setEffectiveWeight(0); // Start at 0 weight
+        newAction.enabled = true;
         newAction.play();
+        // Stronger fade in
+        newAction.fadeIn(duration);
     }
     
     character.currentAction = newAction;
@@ -1093,13 +1100,10 @@ function updateMovement() {
         // Use walk backwards animation when moving backwards
         if (isMovingBackwards) {
             if (player.mixer && player.walkBackwardsAction) {
-                // Stop forward walk if it's playing
-                if (player.walkAction && player.walkAction.isRunning()) {
-                    player.walkAction.stop();
-                }
-                // Start backwards walk if not already playing
-                if (!player.isMovingBackwards || !player.walkBackwardsAction.isRunning()) {
-                    fadeToAction(player, player.walkBackwardsAction);
+                // Stronger fade when switching between walk directions
+                const fadeDuration = (player.isMoving && !player.isMovingBackwards) ? 0.6 : 0.5;
+                if (!player.isMovingBackwards || player.currentAction !== player.walkBackwardsAction) {
+                    fadeToAction(player, player.walkBackwardsAction, fadeDuration);
                     player.isMovingBackwards = true;
                     player.isMoving = true;
                     stateChanged = true;
@@ -1108,13 +1112,10 @@ function updateMovement() {
         } else {
             // Use forward walk animation
             if (player.mixer && player.walkAction) {
-                // Stop backwards walk if it's playing
-                if (player.walkBackwardsAction && player.walkBackwardsAction.isRunning()) {
-                    player.walkBackwardsAction.stop();
-                }
-                // Start forward walk if not already playing
-                if (!player.isMoving || player.isMovingBackwards) {
-                    fadeToAction(player, player.walkAction);
+                // Stronger fade when switching between walk directions
+                const fadeDuration = (player.isMoving && player.isMovingBackwards) ? 0.6 : 0.5;
+                if (!player.isMoving || player.isMovingBackwards || player.currentAction !== player.walkAction) {
+                    fadeToAction(player, player.walkAction, fadeDuration);
                     player.isMoving = true;
                     player.isMovingBackwards = false;
                     stateChanged = true;
