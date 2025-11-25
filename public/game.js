@@ -101,6 +101,9 @@ document.getElementById('join-button').addEventListener('click', async () => {
     // Hide username input and show loading screen immediately
     document.getElementById('username-input').classList.add('hidden');
     document.getElementById('loading-screen').classList.remove('hidden');
+    // Make sure chat is hidden during loading
+    document.getElementById('chat-container').classList.add('hidden');
+    document.getElementById('chat-hint').classList.add('hidden');
     loadingStartTime = Date.now();
     modelsLoaded = false;
     serverConnected = false;
@@ -753,8 +756,9 @@ function createPlayerCharacter() {
                 currentAction = walkAction;
             }
             
+            // Update username sprite position after model loads
             if (size.y > 0) {
-                sprite.position.y = (size.y * scale) + 0.5;
+                sprite.position.y = (size.y * scale) + 1.2; // Raised higher above character
             }
             
             player.mixer = mixer;
@@ -762,6 +766,11 @@ function createPlayerCharacter() {
             player.idleAction = idleAction;
             player.currentAction = currentAction;
             player.isMoving = false;
+            
+            // Update username sprite position after model loads
+            if (size.y > 0) {
+                sprite.position.y = (size.y * scale) + 1.2; // Raised higher above character
+            }
         })
         .catch((error) => {
             console.error('Error loading character model:', error);
@@ -847,7 +856,7 @@ function addOtherPlayer(playerData) {
     // Much smaller scale
     const aspectRatio = baseWidth / baseHeight;
     sprite.scale.set(0.15 * aspectRatio, 0.15, 1);
-    sprite.position.y = 2.5;
+    sprite.position.y = 3.2; // Raised higher above character
     group.add(sprite);
     
     group.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
@@ -905,8 +914,9 @@ function addOtherPlayer(playerData) {
                 currentAction = walkAction;
             }
             
+            // Update username sprite position after model loads
             if (size.y > 0) {
-                sprite.position.y = (size.y * scale) + 0.5;
+                sprite.position.y = (size.y * scale) + 1.2; // Raised higher above character
             }
             
             const otherPlayer = otherPlayers.get(playerData.id);
@@ -1256,8 +1266,8 @@ function displayChatMessage(playerId, username, message) {
     sprite.scale.set(0.2 * aspectRatio, 0.2, 1);
     
     // Position right below username label
-    // Username is typically at y=2.5, so position chat message below it
-    sprite.position.y = 2.0; // Below username label
+    // Username is now at y=3.2 (or higher after model loads), so position chat message below it
+    sprite.position.y = 2.5; // Below username label, raised to avoid character
     sprite.userData.playerId = playerId;
     sprite.userData.startTime = Date.now();
     sprite.userData.duration = 5000; // 5 seconds
