@@ -644,19 +644,22 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
         animations.idle.play();
     }
     
-    // Walk forward animation (normal speed)
+    // Walk animations - create separate actions to prevent interference
     if (walkGltf?.animations?.length > 0) {
         const walkClip = walkGltf.animations[0];
         
-        // Forward walk
+        // Forward walk - NORMAL playback (your walk.glb exactly as-is)
         animations.walkForward = mixer.clipAction(walkClip);
         animations.walkForward.setLoop(THREE.LoopRepeat);
-        animations.walkForward.timeScale = 1.0; // Normal speed
+        animations.walkForward.timeScale = 1.0; // POSITIVE = forward
+        animations.walkForward.clampWhenFinished = false;
         
-        // Backward walk (reversed)
-        animations.walkBackward = mixer.clipAction(walkClip);
+        // Clone the clip for backward to avoid sharing state
+        const walkClipClone = walkClip.clone();
+        animations.walkBackward = mixer.clipAction(walkClipClone);
         animations.walkBackward.setLoop(THREE.LoopRepeat);
-        animations.walkBackward.timeScale = -1.0; // Reversed
+        animations.walkBackward.timeScale = -1.0; // NEGATIVE = reversed
+        animations.walkBackward.clampWhenFinished = false;
     }
     
     // Update sprite position
@@ -706,8 +709,20 @@ function updatePlayerAnimation(playerObj, newState) {
     }
     
     newAction.reset();
+    
+    // CRITICAL: Ensure timeScale is preserved correctly
+    if (newAction === animations.walkForward) {
+        newAction.timeScale = 1.0; // Force forward playback
+    } else if (newAction === animations.walkBackward) {
+        newAction.timeScale = -1.0; // Force backward playback
+        // Start from end of animation for smooth reverse playback
+        newAction.time = newAction.getClip().duration;
+    }
+    
     newAction.fadeIn(fadeDuration);
     newAction.play();
+    
+    console.log(`Animation changed to: ${newState}, timeScale: ${newAction.timeScale}`);
     
     playerObj.currentAction = newAction;
 }
