@@ -193,20 +193,27 @@ document.getElementById('join-button').addEventListener('click', async () => {
     updateLoadingProgress(10, 'Loading models...');
     
     try {
+        console.log('Loading models...');
         await Promise.all([loadWalkGLTF(), loadIdleGLTF()]);
         modelsLoaded = true;
+        console.log('Models loaded successfully');
         updateLoadingProgress(90, 'Initializing...');
-        
+
         init();
-        
+
         if (serverConnected) {
             updateLoadingProgress(100, 'Ready!');
             hideLoadingScreen();
+        } else {
+            console.log('Waiting for server connection...');
         }
     } catch (error) {
         console.error('Error loading models:', error);
-        updateLoadingProgress(100, 'Error loading models');
+        console.error('Error details:', error.message, error.stack);
+        updateLoadingProgress(100, 'Error loading models - check console');
+        // Still try to initialize even with model errors
         setTimeout(() => {
+            console.log('Initializing without models...');
             init();
             hideLoadingScreen();
         }, 1000);
@@ -301,6 +308,7 @@ function init() {
         serverConnected = true;
         updateLoadingProgress(95, 'Connected!');
 
+        console.log('Emitting playerJoin with username:', username);
         socket.emit('playerJoin', {
             username: username,
             position: { x: 0, y: 0, z: 2 },
@@ -317,6 +325,15 @@ function init() {
             updateLoadingProgress(100, 'Ready!');
             hideLoadingScreen();
         }
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error);
+        updateLoadingProgress(100, 'Connection failed - check server');
+    });
+
+    socket.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
     });
     
     socket.on('currentPlayers', (players) => {
