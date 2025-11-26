@@ -531,11 +531,123 @@ function updateDustParticles() {
     });
 }
 
+// Dense aura particles specifically around the hat
+function createHatAuraParticles(hatGroup) {
+    const particleCount = 50; // Dense particles around hat
+
+    const createAuraTexture = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 64;
+        canvas.height = 64;
+        const context = canvas.getContext('2d');
+
+        const centerX = 32;
+        const centerY = 32;
+        const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 32);
+        gradient.addColorStop(0, 'rgba(16, 71, 210, 0.9)');
+        gradient.addColorStop(0.4, 'rgba(16, 71, 210, 0.5)');
+        gradient.addColorStop(0.8, 'rgba(16, 71, 210, 0.1)');
+        gradient.addColorStop(1, 'rgba(16, 71, 210, 0)');
+
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 64, 64);
+
+        return canvas;
+    };
+
+    const auraTexture = new THREE.CanvasTexture(createAuraTexture());
+    auraTexture.needsUpdate = true;
+
+    for (let i = 0; i < particleCount; i++) {
+        // Create particles in a sphere around the hat (radius 2-4 units)
+        const radius = 2 + Math.random() * 2;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI;
+
+        const x = Math.sin(phi) * Math.cos(theta) * radius;
+        const y = Math.cos(phi) * radius + (Math.random() - 0.5) * 1.5; // Some vertical spread
+        const z = Math.sin(phi) * Math.sin(theta) * radius;
+
+        const spriteMaterial = new THREE.SpriteMaterial({
+            map: auraTexture,
+            color: 0x1047d2,
+            transparent: true,
+            opacity: 0.3 + Math.random() * 0.4, // Higher opacity for aura
+            blending: THREE.AdditiveBlending,
+            depthTest: true,
+            depthWrite: false
+        });
+
+        const sprite = new THREE.Sprite(spriteMaterial);
+        const size = 0.1 + Math.random() * 0.15; // Smaller, denser particles
+        sprite.scale.set(size, size, 1);
+        sprite.position.set(x, y, z);
+
+        // Slower, more subtle movement for aura effect
+        sprite.userData.velocity = {
+            x: (Math.random() - 0.5) * 0.005,
+            y: (Math.random() - 0.5) * 0.003,
+            z: (Math.random() - 0.5) * 0.005
+        };
+
+        hatGroup.add(sprite);
+    }
+}
+
+function updateHatAuraParticles() {
+    if (!floatingHat) return;
+
+    // Find all sprite children of the hat group (aura particles)
+    floatingHat.children.forEach(child => {
+        if (child.type === 'Sprite' && child.userData.velocity) {
+            const vel = child.userData.velocity;
+
+            child.position.x += vel.x;
+            child.position.y += vel.y;
+            child.position.z += vel.z;
+
+            // Keep particles within a reasonable distance from hat center
+            const distance = Math.sqrt(
+                child.position.x * child.position.x +
+                child.position.y * child.position.y +
+                child.position.z * child.position.z
+            );
+
+            if (distance > 5) {
+                // Reset particle to a random position near the hat
+                const radius = 2 + Math.random() * 2;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+
+                child.position.x = Math.sin(phi) * Math.cos(theta) * radius;
+                child.position.y = Math.cos(phi) * radius + (Math.random() - 0.5) * 1.5;
+                child.position.z = Math.sin(phi) * Math.sin(theta) * radius;
+            }
+
+            // Gentle random drift
+            vel.x += (Math.random() - 0.5) * 0.0002;
+            vel.y += (Math.random() - 0.5) * 0.0001;
+            vel.z += (Math.random() - 0.5) * 0.0002;
+
+            // Dampen velocities
+            vel.x *= 0.995;
+            vel.y *= 0.995;
+            vel.z *= 0.995;
+
+            // Make particles face camera for better visibility
+            if (camera) {
+                child.lookAt(camera.position);
+            }
+        }
+    });
+}
+
 function createFloatingHat() {
     const hatGroup = new THREE.Group();
-    hatGroup.position.set(0, 6, 0);
-    
-    const glowLight = new THREE.PointLight(0x1047d2, 2, 15);
+    hatGroup.position.set(0, 6.5, 0); // Raised up just a tad
+
+    // Brighter light for more aura
+    const glowLight = new THREE.PointLight(0x1047d2, 4, 20); // Increased intensity from 2 to 4, range from 15 to 20
     glowLight.position.set(0, 0, 0);
     hatGroup.add(glowLight);
     
@@ -562,17 +674,18 @@ function createFloatingHat() {
     const glowTexture = new THREE.CanvasTexture(createGlowTexture());
     glowTexture.needsUpdate = true;
     
-    for (let i = 0; i < 3; i++) {
+    // More glow layers for denser aura (increased from 3 to 5)
+    for (let i = 0; i < 5; i++) {
         const glowSprite = new THREE.Sprite(
             new THREE.SpriteMaterial({
                 map: glowTexture,
                 transparent: true,
-                opacity: 0.6 - i * 0.15,
+                opacity: 0.7 - i * 0.1, // Higher base opacity
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             })
         );
-        const size = 3 + i * 0.5;
+        const size = 4 + i * 0.6; // Bigger sizes (was 3 + i * 0.5)
         glowSprite.scale.set(size, size, 1);
         glowSprite.position.y = 0;
         hatGroup.add(glowSprite);
@@ -599,13 +712,17 @@ function createFloatingHat() {
             const box = new THREE.Box3().setFromObject(hatModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = 7.5 / maxDimension;
+            const scale = 8.625 / maxDimension; // 15% bigger (7.5 * 1.15 = 8.625)
             hatModel.scale.set(scale, scale, scale);
             
             const center = box.getCenter(new THREE.Vector3());
             hatModel.position.sub(center);
             
             hatGroup.add(hatModel);
+
+            // Add dense particles around the hat
+            createHatAuraParticles(hatGroup);
+
             floatingHat = hatGroup;
             scene.add(hatGroup);
         },
@@ -1020,6 +1137,7 @@ function animate() {
     });
 
     updateDustParticles();
+    updateHatAuraParticles();
 
     if (floatingHat) {
         floatingHat.rotation.y += delta * 0.3;
