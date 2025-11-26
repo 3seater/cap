@@ -300,7 +300,6 @@ function init() {
     
     createRoom();
     createFloorDebris();
-    createScatteredHats();
     createDustParticles();
     createFloatingHat();
     createPlayerCharacter();
@@ -1057,53 +1056,6 @@ function createFloorDebris() {
     }
 }
 
-// Create scattered hats on the floor using hat.glb
-function createScatteredHats() {
-    const hatCount = 12;
-    const hallwayLength = 40;
-    const hallwayWidth = 12;
-
-    const hatLoader = createGLTFLoader();
-
-    for (let i = 0; i < hatCount; i++) {
-        hatLoader.load('hat/hat.glb', (gltf) => {
-            const hatModel = gltf.scene.clone();
-
-            // Enable shadows
-            hatModel.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    // Make scattered hats less emissive (more natural)
-                    if (child.material) {
-                        child.material.emissive.setHex(0x001122);
-                        child.material.emissiveIntensity = 0.1;
-                    }
-                }
-            });
-
-            // Scale down the scattered hats
-            const hatScale = 0.3 + Math.random() * 0.4; // Random size 0.3-0.7
-            hatModel.scale.set(hatScale, hatScale, hatScale);
-
-            // Position randomly on floor
-            hatModel.position.set(
-                (Math.random() - 0.5) * (hallwayWidth - 4), // Avoid walls
-                0, // On ground
-                Math.random() * hallwayLength // Throughout hallway
-            );
-
-            // Random rotation
-            hatModel.rotation.set(
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2,
-                Math.random() * Math.PI * 2
-            );
-
-            scene.add(hatModel);
-        });
-    }
-}
 
 function createDustParticles() {
     const particleCount = 200;
