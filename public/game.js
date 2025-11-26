@@ -272,6 +272,17 @@ function init() {
     spotlight.target.position.set(0, 0, 55);
     scene.add(spotlight);
     scene.add(spotlight.target);
+
+    // Blue spotlight above the hat for top illumination
+    const blueSpotlight = new THREE.SpotLight(0x4466ff, 0.8);
+    blueSpotlight.position.set(0, 15, 70); // Above the hat
+    blueSpotlight.angle = Math.PI / 6; // Narrower beam
+    blueSpotlight.penumbra = 0.4;
+    blueSpotlight.decay = 2;
+    blueSpotlight.distance = 20;
+    blueSpotlight.target.position.set(0, 8, 70); // Target the hat
+    scene.add(blueSpotlight);
+    scene.add(blueSpotlight.target);
     
     createRoom();
     createFloorDebris();
@@ -481,12 +492,18 @@ function createRoom() {
     // Create pillars along both sides
     for (let i = 0; i < numPillars; i++) {
         const z = i * pillarSpacing;
-        
+
         // Left pillar
         createPillar(-hallwayWidth / 2 + 1.5, z);
-        
+
         // Right pillar
         createPillar(hallwayWidth / 2 - 1.5, z);
+
+        // Add torch between pillars (not at the very end)
+        if (i < numPillars - 1) {
+            createTorch(-hallwayWidth / 2 + 1.5, z + pillarSpacing / 2, true); // Left wall torch
+            createTorch(hallwayWidth / 2 - 1.5, z + pillarSpacing / 2, false); // Right wall torch
+        }
     }
     
     // Walls - rough damaged appearance with texture
@@ -734,8 +751,80 @@ function createPillar(x, z) {
     }
 }
 
+// Create old-style torch hanging on the wall
+function createTorch(x, z, isLeftWall) {
+    const torchGroup = new THREE.Group();
+
+    // Torch bracket (metal arm)
+    const bracketMaterial = new THREE.MeshStandardMaterial({
+        color: 0x2a2a2a,
+        roughness: 0.7,
+        metalness: 0.8
+    });
+
+    // Torch pole
+    const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
+    const pole = new THREE.Mesh(poleGeometry, bracketMaterial);
+    pole.position.set(0, 0.4, 0);
+    torchGroup.add(pole);
+
+    // Torch holder (cup)
+    const holderGeometry = new THREE.CylinderGeometry(0.08, 0.06, 0.1, 8);
+    const holder = new THREE.Mesh(holderGeometry, bracketMaterial);
+    holder.position.set(0, 0.85, 0);
+    torchGroup.add(holder);
+
+    // Flame (animated)
+    const flameGeometry = new THREE.ConeGeometry(0.1, 0.3, 6);
+    const flameMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffaa44,
+        transparent: true,
+        opacity: 0.8
+    });
+    const flame = new THREE.Mesh(flameGeometry, flameMaterial);
+    flame.position.set(0, 1.0, 0);
+    flame.userData.baseScale = 1.0;
+    flame.userData.flickerSpeed = 2 + Math.random() * 2;
+    torchGroup.add(flame);
+
+    // Inner flame (brighter)
+    const innerFlameGeometry = new THREE.ConeGeometry(0.05, 0.15, 6);
+    const innerFlameMaterial = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.9
+    });
+    const innerFlame = new THREE.Mesh(innerFlameGeometry, innerFlameMaterial);
+    innerFlame.position.set(0, 1.05, 0);
+    innerFlame.userData.baseScale = 1.0;
+    innerFlame.userData.flickerSpeed = 3 + Math.random() * 2;
+    torchGroup.add(innerFlame);
+
+    // Store flames for animation
+    torchFlames.push(flame);
+    torchFlames.push(innerFlame);
+
+    // Position torch on wall
+    if (isLeftWall) {
+        torchGroup.position.set(x - 0.2, 5, z); // Left wall
+        torchGroup.rotation.z = -Math.PI / 6; // Angle slightly outward
+    } else {
+        torchGroup.position.set(x + 0.2, 5, z); // Right wall
+        torchGroup.rotation.z = Math.PI / 6; // Angle slightly outward
+    }
+
+    // Add point light for torch glow
+    const torchLight = new THREE.PointLight(0xffaa44, 1.2, 8);
+    torchLight.position.copy(torchGroup.position);
+    torchLight.position.y += 1.0; // At flame height
+    scene.add(torchLight);
+
+    scene.add(torchGroup);
+}
+
 let dustParticles = [];
 let floatingHat = null;
+let torchFlames = []; // Store torch flames for animation
 
 // Create procedural rough texture
 function createRoughTexture(width, height, baseColor) {
@@ -798,6 +887,27 @@ function createNormalMap(width, height) {
     texture.wrapT = THREE.RepeatWrapping;
     return texture;
 }
+
+// Update torch flame animations
+function updateTorchFlames() {
+    const time = clock.getElapsedTime();
+
+    torchFlames.forEach(flame => {
+        if (flame.userData) {
+            // Create flickering effect
+            const flicker = Math.sin(time * flame.userData.flickerSpeed) * 0.1 +
+                           Math.sin(time * flame.userData.flickerSpeed * 1.3) * 0.05 +
+                           (Math.random() - 0.5) * 0.02;
+
+            const scale = flame.userData.baseScale + flicker;
+            flame.scale.set(scale, scale, scale);
+
+            // Slight position variation
+            flame.position.y = 1.0 + flicker * 0.05;
+        }
+    });
+}
+
 let floorFogParticles = [];
 
 // Create mysterious floor fog/mist
@@ -1136,7 +1246,7 @@ function updateHatAuraParticles() {
 
 function createFloatingHat() {
     const hatGroup = new THREE.Group();
-    hatGroup.position.set(0, 6.5, 55); // In the open area beyond the door
+    hatGroup.position.set(0, 8, 70); // Farther away (70), raised higher (8), in the open area beyond the door
 
     // Brighter light for more aura
     const glowLight = new THREE.PointLight(0x1047d2, 4, 20); // Increased intensity from 2 to 4, range from 15 to 20
@@ -1204,7 +1314,7 @@ function createFloatingHat() {
             const box = new THREE.Box3().setFromObject(hatModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
-            const scale = 8.625 / maxDimension; // 15% bigger (7.5 * 1.15 = 8.625)
+            const scale = 10.78125 / maxDimension; // 25% bigger than original (7.5 * 1.25 * 1.15 = 10.78125)
             hatModel.scale.set(scale, scale, scale);
             
             const center = box.getCenter(new THREE.Vector3());
@@ -1605,8 +1715,8 @@ function updateMovement() {
         direction.normalize();
         direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
         
-        // Sprint: 30% faster when holding Shift
-        const currentSpeed = keys['shift'] ? moveSpeed * 1.3 : moveSpeed;
+        // Sprint: 55% faster when holding Shift (was 30%, now 55% total)
+        const currentSpeed = keys['shift'] ? moveSpeed * 1.55 : moveSpeed;
         
         player.mesh.position.x += direction.x * currentSpeed;
         player.mesh.position.z += direction.z * currentSpeed;
@@ -1679,6 +1789,7 @@ function animate() {
     });
 
     updateDustParticles();
+    updateTorchFlames();
     updateHatAuraParticles();
 
     if (floatingHat) {
