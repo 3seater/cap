@@ -24,6 +24,9 @@ let chatMessages = new Map();
 let isEmoteWheelOpen = false;
 let hoveredEmoteId = null;
 
+// ESC menu state
+let isEscMenuOpen = false;
+
 // Meme coin stats
 let memeCoinData = null;
 let lastStatsUpdate = 0;
@@ -293,6 +296,7 @@ function init() {
     
     createRoom();
     createFloorDebris();
+    createScatteredHats();
     createDustParticles();
     createFloatingHat();
     createPlayerCharacter();
@@ -408,13 +412,20 @@ function init() {
         }
 
         // F key for emote wheel (hold to open)
-        if (key === 'f' && isInitialized && !isChatOpen && !isEmoteWheelOpen) {
+        if (key === 'f' && isInitialized && !isChatOpen && !isEmoteWheelOpen && !isEscMenuOpen) {
             openEmoteWheel();
             e.preventDefault();
             return;
         }
 
-        if (!isChatOpen && !isEmoteWheelOpen) {
+        // ESC key for menu
+        if (key === 'escape' && isInitialized && !isChatOpen && !isEmoteWheelOpen) {
+            toggleEscMenu();
+            e.preventDefault();
+            return;
+        }
+
+        if (!isChatOpen && !isEmoteWheelOpen && !isEscMenuOpen) {
             keys[key] = true;
         }
     });
@@ -631,36 +642,29 @@ function createRoom() {
     topWall.receiveShadow = true;
     scene.add(topWall);
 
-    // Doorway frame - GLOWING to show the way
-    const doorFrameMaterial = new THREE.MeshStandardMaterial({
-        color: 0x4a3020,
-        roughness: 0.7,
-        emissive: 0xff8844, // Warm orange glow
-        emissiveIntensity: 0.5
-    });
-
+    // Doorway frame - using same material as walls, slight offset to prevent Z-fighting
     // Left door frame
-    const doorFrameGeometry = new THREE.BoxGeometry(0.5, doorHeight, 0.5);
-    const leftDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
-    leftDoorFrame.position.set(-doorWidth / 2, doorHeight / 2, hallwayLength);
+    const doorFrameGeometry = new THREE.BoxGeometry(0.5, doorHeight, 0.52); // Slightly thicker
+    const leftDoorFrame = new THREE.Mesh(doorFrameGeometry, wallMaterial);
+    leftDoorFrame.position.set(-doorWidth / 2, doorHeight / 2, hallwayLength + 0.01); // Offset forward
     leftDoorFrame.castShadow = true;
     scene.add(leftDoorFrame);
 
     // Right door frame
-    const rightDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
-    rightDoorFrame.position.set(doorWidth / 2, doorHeight / 2, hallwayLength);
+    const rightDoorFrame = new THREE.Mesh(doorFrameGeometry, wallMaterial);
+    rightDoorFrame.position.set(doorWidth / 2, doorHeight / 2, hallwayLength + 0.01); // Offset forward
     rightDoorFrame.castShadow = true;
     scene.add(rightDoorFrame);
 
     // Top door frame
-    const topFrameGeometry = new THREE.BoxGeometry(doorWidth, 0.5, 0.5);
-    const topDoorFrame = new THREE.Mesh(topFrameGeometry, doorFrameMaterial);
-    topDoorFrame.position.set(0, doorHeight, hallwayLength);
+    const topFrameGeometry = new THREE.BoxGeometry(doorWidth, 0.5, 0.52); // Slightly thicker
+    const topDoorFrame = new THREE.Mesh(topFrameGeometry, wallMaterial);
+    topDoorFrame.position.set(0, doorHeight, hallwayLength + 0.01); // Offset forward
     topDoorFrame.castShadow = true;
     scene.add(topDoorFrame);
 
-    // Add glowing light around doorway
-    const doorGlowLight = new THREE.PointLight(0xff8844, 1.5, 15);
+    // Add subtle glowing light around doorway (50% less glow)
+    const doorGlowLight = new THREE.PointLight(0xff8844, 0.75, 15); // Reduced from 1.5 to 0.75
     doorGlowLight.position.set(0, doorHeight / 2, hallwayLength);
     scene.add(doorGlowLight);
     
@@ -1016,13 +1020,13 @@ function createFloorDebris() {
     const debrisCount = 40;
     const hallwayLength = 40;
     const hallwayWidth = 12;
-    
+
     const debrisMaterial = new THREE.MeshStandardMaterial({
         color: 0x4a4a4a,
         roughness: 1.0,
         flatShading: true
     });
-    
+
     for (let i = 0; i < debrisCount; i++) {
         // Random debris shapes
         const size = Math.random() * 0.3 + 0.1;
@@ -1031,7 +1035,7 @@ function createFloorDebris() {
             size * 0.5,
             size * (0.8 + Math.random() * 0.4)
         );
-        
+
         const debris = new THREE.Mesh(debrisGeometry, debrisMaterial);
         debris.position.set(
             (Math.random() - 0.5) * (hallwayWidth - 3),
@@ -1046,6 +1050,54 @@ function createFloorDebris() {
         debris.castShadow = true;
         debris.receiveShadow = true;
         scene.add(debris);
+    }
+}
+
+// Create scattered hats on the floor using hat.glb
+function createScatteredHats() {
+    const hatCount = 12;
+    const hallwayLength = 40;
+    const hallwayWidth = 12;
+
+    const hatLoader = createGLTFLoader();
+
+    for (let i = 0; i < hatCount; i++) {
+        hatLoader.load('hat/hat.glb', (gltf) => {
+            const hatModel = gltf.scene.clone();
+
+            // Enable shadows
+            hatModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    // Make scattered hats less emissive (more natural)
+                    if (child.material) {
+                        child.material.emissive.setHex(0x001122);
+                        child.material.emissiveIntensity = 0.1;
+                    }
+                }
+            });
+
+            // Scale down the scattered hats
+            const hatScale = 0.3 + Math.random() * 0.4; // Random size 0.3-0.7
+            hatModel.scale.set(hatScale, hatScale, hatScale);
+
+            // Position randomly on floor
+            hatModel.position.set(
+                (Math.random() - 0.5) * (hallwayWidth - 4), // Avoid walls
+                0, // On ground
+                Math.random() * hallwayLength // Throughout hallway
+            );
+
+            // Random rotation
+            hatModel.rotation.set(
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2
+            );
+
+            scene.add(hatModel);
+        });
     }
 }
 
@@ -1664,7 +1716,7 @@ function updatePlayerCount() {
 }
 
 function updateMovement() {
-    if (!player || isEmoteWheelOpen) return;
+    if (!player || isEmoteWheelOpen || isEscMenuOpen) return;
     
     const direction = new THREE.Vector3();
     let newAnimState = 'idle';
@@ -1820,9 +1872,12 @@ function animate() {
 
 // Chat functions
 function openChat() {
-    // Close emote wheel if open
+    // Close emote wheel and ESC menu if open
     if (isEmoteWheelOpen) {
         closeEmoteWheel();
+    }
+    if (isEscMenuOpen) {
+        closeEscMenu();
     }
 
     isChatOpen = true;
@@ -1949,6 +2004,31 @@ function closeEmoteWheel() {
         item.removeEventListener('mouseleave', handleEmoteUnhover);
         item.classList.remove('hovered');
     });
+}
+
+// ESC Menu functions
+function toggleEscMenu() {
+    if (isEscMenuOpen) {
+        closeEscMenu();
+    } else {
+        openEscMenu();
+    }
+}
+
+function openEscMenu() {
+    isEscMenuOpen = true;
+    const escMenu = document.getElementById('esc-menu');
+    if (escMenu) {
+        escMenu.classList.remove('hidden');
+    }
+}
+
+function closeEscMenu() {
+    isEscMenuOpen = false;
+    const escMenu = document.getElementById('esc-menu');
+    if (escMenu) {
+        escMenu.classList.add('hidden');
+    }
 }
 
 function handleEmoteHover(event) {

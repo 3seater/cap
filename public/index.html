@@ -361,6 +361,88 @@
         .emote-item:nth-child(7):hover, .emote-item:nth-child(7).hovered { transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg) scale(1.2); }
         .emote-item:nth-child(8):hover, .emote-item:nth-child(8).hovered { transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg) scale(1.2); }
 
+        #esc-menu {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+        }
+
+        .esc-menu-content {
+            background: rgba(16, 71, 210, 0.1);
+            border: 1px solid rgba(16, 71, 210, 0.3);
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .esc-menu-content h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1047d2;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .keybind-section {
+            margin-bottom: 30px;
+            text-align: left;
+        }
+
+        .keybind-section h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(16, 71, 210, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .keybind {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+        }
+
+        .key {
+            background: #1047d2;
+            color: #ffffff;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 14px;
+            min-width: 80px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .description {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 14px;
+        }
+
+        .menu-footer {
+            margin-top: 30px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 12px;
+            font-style: italic;
+        }
+
         @keyframes emotePulse {
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -472,6 +554,67 @@
             <div class="emote-item" data-emote="6">💎</div>
             <div class="emote-item" data-emote="7">🔥</div>
             <div class="emote-item" data-emote="8">🌟</div>
+        </div>
+    </div>
+
+    <div id="esc-menu" class="hidden">
+        <div class="esc-menu-content">
+            <h1>Controls</h1>
+            <div class="keybind-section">
+                <h2>Movement</h2>
+                <div class="keybind">
+                    <span class="key">W</span>
+                    <span class="description">Walk Forward</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">S</span>
+                    <span class="description">Walk Backward</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">A</span>
+                    <span class="description">Turn Left 90°</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">D</span>
+                    <span class="description">Turn Right 90°</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">W+A</span>
+                    <span class="description">Forward-Left 45°</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">W+D</span>
+                    <span class="description">Forward-Right 45°</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">SHIFT</span>
+                    <span class="description">Sprint (55% faster)</span>
+                </div>
+            </div>
+
+            <div class="keybind-section">
+                <h2>Camera & UI</h2>
+                <div class="keybind">
+                    <span class="key">Mouse</span>
+                    <span class="description">Look Around</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">F</span>
+                    <span class="description">Emote Wheel</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">T</span>
+                    <span class="description">Chat</span>
+                </div>
+                <div class="keybind">
+                    <span class="key">ESC</span>
+                    <span class="description">Menu (this)</span>
+                </div>
+            </div>
+
+            <div class="menu-footer">
+                Press ESC to close
+            </div>
         </div>
     </div>
     
