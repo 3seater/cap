@@ -1100,14 +1100,28 @@ function updateMovement() {
         targetRotationOffset = -Math.PI / 4; // 45 degrees right
         rotateCharacter = true;
         newAnimState = 'walkForward';
+    } else if (keys['s'] && keys['a']) {
+        // S+A = Backward-left (135 degrees)
+        direction.z += 1;
+        targetRotationOffset = (3 * Math.PI) / 4; // 135 degrees left
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
+    } else if (keys['s'] && keys['d']) {
+        // S+D = Backward-right (-135 degrees)
+        direction.z += 1;
+        targetRotationOffset = -(3 * Math.PI) / 4; // 135 degrees right
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     } else if (keys['w']) {
         // W = Forward (0 degrees)
         direction.z += 1;
         newAnimState = 'walkForward';
     } else if (keys['s']) {
-        // S = Backward (no rotation, just move backwards)
-        direction.z -= 1;
-        newAnimState = 'walkBackward';
+        // S = Backward (180 degrees)
+        direction.z += 1;
+        targetRotationOffset = Math.PI; // 180 degrees
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     } else if (keys['a']) {
         // A = Left (90 degrees)
         direction.z += 1; // Move forward after rotating
@@ -1125,7 +1139,7 @@ function updateMovement() {
     // Apply smooth rotation to character if needed
     if (rotateCharacter) {
         const targetRotation = player.mesh.rotation.y + targetRotationOffset;
-        const rotationSpeed = 0.045; // 70% less sensitive (was 0.15)
+        const rotationSpeed = 0.036; // 80% less sensitive than original (was 0.15, then 0.045)
         let rotationDiff = targetRotation - player.mesh.rotation.y;
         
         // Normalize to shortest path
