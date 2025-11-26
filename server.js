@@ -83,6 +83,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle emote events
+  socket.on('playEmote', (data) => {
+    const player = players.get(socket.id);
+    if (player) {
+      // Broadcast emote to all other players
+      socket.broadcast.emit('playerEmote', {
+        playerId: socket.id,
+        emoteId: data.emoteId
+      });
+    }
+  });
+
   // Handle disconnection
   socket.on('disconnect', () => {
     const player = players.get(socket.id);

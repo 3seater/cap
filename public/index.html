@@ -304,6 +304,62 @@
         .stats-details div {
             white-space: nowrap;
         }
+
+        #emote-wheel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            pointer-events: none;
+        }
+
+        .emote-wheel-center {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        .emote-item {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            background: rgba(16, 71, 210, 0.9);
+            border: 2px solid #1047d2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: all 0.2s ease;
+            box-shadow: 0 0 20px rgba(16, 71, 210, 0.5);
+        }
+
+        .emote-item:hover {
+            background: rgba(16, 71, 210, 1);
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(16, 71, 210, 0.8);
+        }
+
+        .emote-item:nth-child(1) { transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg); }
+        .emote-item:nth-child(2) { transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg); }
+        .emote-item:nth-child(3) { transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg); }
+        .emote-item:nth-child(4) { transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg); }
+        .emote-item:nth-child(5) { transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg); }
+        .emote-item:nth-child(6) { transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg); }
+        .emote-item:nth-child(7) { transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg); }
+        .emote-item:nth-child(8) { transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg); }
+
+        @keyframes emotePulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .emote-item.playing-emote {
+            animation: emotePulse 0.6s ease-in-out;
+        }
         
         #loading-screen {
             position: fixed;
@@ -395,6 +451,19 @@
 
     <div id="meme-coin-stats" class="hidden">
         <!-- Stats will be populated by JavaScript -->
+    </div>
+
+    <div id="emote-wheel" class="hidden">
+        <div class="emote-wheel-center">
+            <div class="emote-item" data-emote="1">😀</div>
+            <div class="emote-item" data-emote="2">😎</div>
+            <div class="emote-item" data-emote="3">🤪</div>
+            <div class="emote-item" data-emote="4">🤖</div>
+            <div class="emote-item" data-emote="5">🚀</div>
+            <div class="emote-item" data-emote="6">💎</div>
+            <div class="emote-item" data-emote="7">🔥</div>
+            <div class="emote-item" data-emote="8">🌟</div>
+        </div>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

@@ -20,6 +20,9 @@ let pitch = 0;
 let isChatOpen = false;
 let chatMessages = new Map();
 
+// Emote wheel state
+let isEmoteWheelOpen = false;
+
 // Meme coin stats
 let memeCoinData = null;
 let lastStatsUpdate = 0;
@@ -332,6 +335,12 @@ function init() {
     socket.on('chatMessage', (data) => {
         addMessageToChatLog(data.username, data.message);
     });
+
+    // Handle emote events from other players
+    socket.on('playerEmote', (data) => {
+        // TODO: Show emote animation above other player's head
+        console.log(`Player ${data.playerId} played emote ${data.emoteId}`);
+    });
     
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
@@ -354,8 +363,15 @@ function init() {
             e.preventDefault();
             return;
         }
-        
-        if (!isChatOpen) {
+
+        // F key for emote wheel
+        if (key === 'f' && isInitialized && !isChatOpen) {
+            toggleEmoteWheel();
+            e.preventDefault();
+            return;
+        }
+
+        if (!isChatOpen && !isEmoteWheelOpen) {
             keys[key] = true;
         }
     });
@@ -1048,7 +1064,7 @@ function updatePlayerCount() {
 }
 
 function updateMovement() {
-    if (!player) return;
+    if (!player || isEmoteWheelOpen) return;
     
     const direction = new THREE.Vector3();
     let newAnimState = 'idle';
@@ -1061,6 +1077,14 @@ function updateMovement() {
     if (keys['s']) {
         direction.z -= 1; // Backward
         newAnimState = 'walkBackward';
+    }
+    if (keys['a']) {
+        direction.x -= 1; // Left strafe
+        if (newAnimState === 'idle') newAnimState = 'walkForward'; // Use walk animation for strafing
+    }
+    if (keys['d']) {
+        direction.x += 1; // Right strafe
+        if (newAnimState === 'idle') newAnimState = 'walkForward'; // Use walk animation for strafing
     }
     
     // Apply movement
@@ -1158,20 +1182,25 @@ function animate() {
 
 // Chat functions
 function openChat() {
+    // Close emote wheel if open
+    if (isEmoteWheelOpen) {
+        closeEmoteWheel();
+    }
+
     isChatOpen = true;
     const chatContainer = document.getElementById('chat-container');
     const chatInputContainer = document.getElementById('chat-input-container');
     const chatHint = document.getElementById('chat-hint');
-    
+
     if (chatContainer) chatContainer.classList.remove('hidden');
     if (chatInputContainer) chatInputContainer.classList.add('active');
     if (chatHint) chatHint.classList.add('hidden');
-    
+
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
         chatInput.focus();
     }
-    
+
     if (document.pointerLockElement) {
         document.exitPointerLock();
     }
@@ -1233,4 +1262,93 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Emote wheel functions
+function toggleEmoteWheel() {
+    if (isEmoteWheelOpen) {
+        closeEmoteWheel();
+    } else {
+        openEmoteWheel();
+    }
+}
+
+function openEmoteWheel() {
+    if (isChatOpen) return; // Don't open if chat is open
+
+    isEmoteWheelOpen = true;
+    const emoteWheel = document.getElementById('emote-wheel');
+    if (emoteWheel) {
+        emoteWheel.classList.remove('hidden');
+    }
+
+    // Add click handlers to emote items
+    const emoteItems = document.querySelectorAll('.emote-item');
+    emoteItems.forEach(item => {
+        item.addEventListener('click', handleEmoteClick);
+    });
+
+    // Add keyboard handlers for number keys (1-8)
+    document.addEventListener('keydown', handleEmoteKey);
+}
+
+function closeEmoteWheel() {
+    isEmoteWheelOpen = false;
+    const emoteWheel = document.getElementById('emote-wheel');
+    if (emoteWheel) {
+        emoteWheel.classList.add('hidden');
+    }
+
+    // Remove click handlers
+    const emoteItems = document.querySelectorAll('.emote-item');
+    emoteItems.forEach(item => {
+        item.removeEventListener('click', handleEmoteClick);
+    });
+
+    // Remove keyboard handlers
+    document.removeEventListener('keydown', handleEmoteKey);
+}
+
+function handleEmoteClick(event) {
+    const emoteId = event.target.dataset.emote;
+    playEmote(emoteId);
+    closeEmoteWheel();
+}
+
+function handleEmoteKey(event) {
+    if (!isEmoteWheelOpen) return;
+
+    const key = event.key;
+    if (key >= '1' && key <= '8') {
+        const emoteId = key;
+        playEmote(emoteId);
+        closeEmoteWheel();
+        event.preventDefault();
+    } else if (key === 'Escape' || key === 'f') {
+        closeEmoteWheel();
+        event.preventDefault();
+    }
+}
+
+function playEmote(emoteId) {
+    console.log(`Playing emote ${emoteId}`);
+
+    // Add visual feedback
+    const emoteElement = document.querySelector(`.emote-item[data-emote="${emoteId}"]`);
+    if (emoteElement) {
+        emoteElement.classList.add('playing-emote');
+        setTimeout(() => {
+            emoteElement.classList.remove('playing-emote');
+        }, 600);
+    }
+
+    // Send emote to server (for multiplayer sync)
+    if (socket && socket.connected) {
+        socket.emit('playEmote', {
+            emoteId: emoteId,
+            playerId: socket.id
+        });
+    }
+
+    // TODO: Add actual emote animation/display when you provide the .glb files
 }
