@@ -1398,7 +1398,7 @@ function createPlayerCharacter() {
     const sprite = new THREE.Sprite(spriteMaterial);
     const aspectRatio = baseWidth / baseHeight;
     sprite.scale.set(0.15 * aspectRatio, 0.15, 1);
-    sprite.position.y = 2.5;
+    sprite.position.y = 2.3; // Right above character head
     group.add(sprite);
     
     group.position.set(0, 0, 2); // Spawn at start of hallway
@@ -1483,7 +1483,7 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
     
     // Update sprite position
     if (size.y > 0) {
-        sprite.position.y = (size.y * scale) + 1.2;
+        sprite.position.y = (size.y * scale) + 0.3; // Just above character head
     }
     
     // Attach to player or other player object
@@ -1618,7 +1618,7 @@ function addOtherPlayer(playerData) {
     const sprite = new THREE.Sprite(spriteMaterial);
     const aspectRatio = baseWidth / baseHeight;
     sprite.scale.set(0.09 * aspectRatio, 0.09, 1);
-    sprite.position.y = 3.2;
+    sprite.position.y = 2.3; // Right above character head
     group.add(sprite);
     
     group.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
