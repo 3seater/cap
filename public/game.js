@@ -1431,7 +1431,13 @@ function updateMovement() {
     let targetRotationOffset = 0;
     
     // Determine movement direction and character rotation
-    if (keys['w'] && keys['a']) {
+    // Priority: S key overrides A/D when pressed together (backwards only)
+    if (keys['s']) {
+        // S = Backward (no rotation, just move backwards)
+        // S+A or S+D defaults to just S (backwards only)
+        direction.z -= 1; // Negative Z = backwards
+        newAnimState = 'walkBackward';
+    } else if (keys['w'] && keys['a']) {
         // W+A = Forward-left (45 degrees)
         direction.z += 1;
         targetRotationOffset = Math.PI / 4; // 45 degrees left
@@ -1443,27 +1449,9 @@ function updateMovement() {
         targetRotationOffset = -Math.PI / 4; // 45 degrees right
         rotateCharacter = true;
         newAnimState = 'walkForward';
-    } else if (keys['s'] && keys['a']) {
-        // S+A = Backward-left (135 degrees)
-        direction.z += 1;
-        targetRotationOffset = (3 * Math.PI) / 4; // 135 degrees left
-        rotateCharacter = true;
-        newAnimState = 'walkForward';
-    } else if (keys['s'] && keys['d']) {
-        // S+D = Backward-right (-135 degrees)
-        direction.z += 1;
-        targetRotationOffset = -(3 * Math.PI) / 4; // 135 degrees right
-        rotateCharacter = true;
-        newAnimState = 'walkForward';
     } else if (keys['w']) {
         // W = Forward (0 degrees)
         direction.z += 1;
-        newAnimState = 'walkForward';
-    } else if (keys['s']) {
-        // S = Backward (180 degrees)
-        direction.z += 1;
-        targetRotationOffset = Math.PI; // 180 degrees
-        rotateCharacter = true;
         newAnimState = 'walkForward';
     } else if (keys['a']) {
         // A = Left (90 degrees)
