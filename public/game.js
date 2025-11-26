@@ -853,22 +853,19 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
         animations.idle.play();
     }
     
-    // Walk animations - create separate actions to prevent interference
+    // Single walk animation that can be reversed
     if (walkGltf?.animations?.length > 0) {
         const walkClip = walkGltf.animations[0];
-        
-        // Forward walk - NORMAL playback (your walk.glb exactly as-is)
-        animations.walkForward = mixer.clipAction(walkClip);
-        animations.walkForward.setLoop(THREE.LoopRepeat);
-        animations.walkForward.timeScale = 1.0; // POSITIVE = forward
-        animations.walkForward.clampWhenFinished = false;
-        
-        // Clone the clip for backward to avoid sharing state
-        const walkClipClone = walkClip.clone();
-        animations.walkBackward = mixer.clipAction(walkClipClone);
-        animations.walkBackward.setLoop(THREE.LoopRepeat);
-        animations.walkBackward.timeScale = -1.0; // NEGATIVE = reversed
-        animations.walkBackward.clampWhenFinished = false;
+
+        // Create a single walk action that we'll control with timeScale
+        animations.walk = mixer.clipAction(walkClip);
+        animations.walk.setLoop(THREE.LoopRepeat);
+        animations.walk.timeScale = 1.0; // Start with forward
+        animations.walk.clampWhenFinished = false;
+
+        // Reference the same action for both forward and backward
+        animations.walkForward = animations.walk;
+        animations.walkBackward = animations.walk;
     }
     
     // Update sprite position
@@ -891,49 +888,54 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
 // Update player animation based on state
 function updatePlayerAnimation(playerObj, newState) {
     if (!playerObj.mixer || !playerObj.animations) return;
-    
+
     const animations = playerObj.animations;
-    let newAction = null;
-    
-    switch(newState) {
-        case 'walkForward':
-            newAction = animations.walkForward;
-            break;
-        case 'walkBackward':
-            newAction = animations.walkBackward;
-            break;
-        case 'idle':
-        default:
-            newAction = animations.idle;
-            break;
+
+    // Handle walk animations (forward/backward use same action, just different timeScale)
+    if (newState === 'walkForward' || newState === 'walkBackward') {
+        // If we're already walking, just change direction if needed
+        if (playerObj.currentAction === animations.walk) {
+            // Already playing walk animation, just change direction
+            if (newState === 'walkForward' && animations.walk.timeScale !== 1.0) {
+                animations.walk.timeScale = 1.0; // Switch to forward
+            } else if (newState === 'walkBackward' && animations.walk.timeScale !== -1.0) {
+                animations.walk.timeScale = -1.0; // Switch to backward
+            }
+            return; // No need to change actions
+        }
+
+        // Switch to walk animation
+        if (playerObj.currentAction) {
+            playerObj.currentAction.stop();
+        }
+
+        // Set correct direction
+        animations.walk.timeScale = (newState === 'walkForward') ? 1.0 : -1.0;
+        animations.walk.reset();
+        animations.walk.time = 0;
+        animations.walk.play();
+        playerObj.currentAction = animations.walk;
+        return;
     }
-    
-    if (!newAction || newAction === playerObj.currentAction) return;
-    
-    // Fade from old to new animation
-    const fadeDuration = 0.3; // Subtle fade
-    
-    if (playerObj.currentAction) {
-        playerObj.currentAction.fadeOut(fadeDuration);
+
+    // Handle idle animation
+    if (newState === 'idle') {
+        if (playerObj.currentAction === animations.idle) {
+            return; // Already idle
+        }
+
+        // Switch to idle
+        if (playerObj.currentAction) {
+            playerObj.currentAction.stop();
+        }
+
+        if (animations.idle) {
+            animations.idle.reset();
+            animations.idle.time = 0;
+            animations.idle.play();
+            playerObj.currentAction = animations.idle;
+        }
     }
-    
-    newAction.reset();
-    
-    // CRITICAL: Ensure timeScale is preserved correctly
-    if (newAction === animations.walkForward) {
-        newAction.timeScale = 1.0; // Force forward playback
-    } else if (newAction === animations.walkBackward) {
-        newAction.timeScale = -1.0; // Force backward playback
-        // Start from end of animation for smooth reverse playback
-        newAction.time = newAction.getClip().duration;
-    }
-    
-    newAction.fadeIn(fadeDuration);
-    newAction.play();
-    
-    console.log(`Animation changed to: ${newState}, timeScale: ${newAction.timeScale}`);
-    
-    playerObj.currentAction = newAction;
 }
 
 function addOtherPlayer(playerData) {
