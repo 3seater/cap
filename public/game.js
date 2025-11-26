@@ -590,12 +590,6 @@ function createRoom() {
     // Solid wall at end with door opening
     const doorHeight = 6;
     const doorWidth = 6;
-    const wallMaterial = new THREE.MeshStandardMaterial({
-        color: 0x3a3a3a,
-        roughness: 1.0,
-        metalness: 0.0,
-        flatShading: true
-    });
 
     // Left wall segment (above door)
     const leftWallTopGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, wallHeight - doorHeight, 0.5);
