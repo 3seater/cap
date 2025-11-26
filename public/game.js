@@ -23,7 +23,7 @@ let chatMessages = new Map();
 // Meme coin stats
 let memeCoinData = null;
 let lastStatsUpdate = 0;
-const STATS_UPDATE_INTERVAL = 30000; // Update every 30 seconds
+const STATS_UPDATE_INTERVAL = 7000; // Update every 7 seconds
 
 // Your Solana token contract address (replace with your actual address)
 // Example: const TOKEN_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // USDC
