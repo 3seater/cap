@@ -71,13 +71,11 @@ function loadIdleGLTF() {
 }
 
 function loadWalkBackwardsGLTF() {
-    if (walkBackwardsGLTF) {
-        return Promise.resolve(walkBackwardsGLTF);
-    }
+    // Always load fresh - add timestamp to bust browser cache
     const loader = createGLTFLoader();
     return new Promise((resolve, reject) => {
         loader.load(
-            'models/walkbackwards.glb',
+            'models/walkbackwards.glb?v=' + Date.now(),
             (gltf) => {
                 walkBackwardsGLTF = gltf;
                 resolve(gltf);
@@ -315,28 +313,64 @@ function init() {
             otherPlayer.mesh.position.set(data.position.x, data.position.y, data.position.z);
             otherPlayer.mesh.rotation.y = data.rotation.y;
             
-            if (typeof data.isMoving === 'boolean') {
+            // CRITICAL: Only update animations if mixer and actions are initialized
+            if (otherPlayer.mixer && otherPlayer.walkAction && otherPlayer.idleAction) {
+                if (typeof data.isMoving === 'boolean') {
                 if (data.isMoving) {
                     const isBackwards = data.isMovingBackwards === true;
                     if (isBackwards && otherPlayer.walkBackwardsAction) {
                         if (!otherPlayer.isMovingBackwards || otherPlayer.currentAction !== otherPlayer.walkBackwardsAction) {
-                            // Stronger fade when switching directions
-                            const fadeDuration = (otherPlayer.isMoving && !otherPlayer.isMovingBackwards) ? 0.6 : 0.5;
+                            // Determine fade duration based on current state
+                            let fadeDuration;
+                            if (!otherPlayer.isMoving) {
+                                // Transitioning from idle to walk backwards
+                                fadeDuration = 1.2;
+                            } else if (otherPlayer.isMoving && !otherPlayer.isMovingBackwards) {
+                                // Switching from walk forward to walk backwards
+                                fadeDuration = 1.0;
+                            } else {
+                                // Already walking backwards
+                                fadeDuration = 0.8;
+                            }
+                            // Reset to beginning before fading
+                            otherPlayer.walkBackwardsAction.reset();
+                            otherPlayer.walkBackwardsAction.time = 0;
                             fadeToAction(otherPlayer, otherPlayer.walkBackwardsAction, fadeDuration);
                         }
                     } else if (otherPlayer.walkAction) {
                         if (!otherPlayer.isMoving || otherPlayer.isMovingBackwards || otherPlayer.currentAction !== otherPlayer.walkAction) {
-                            // Stronger fade when switching directions
-                            const fadeDuration = (otherPlayer.isMoving && otherPlayer.isMovingBackwards) ? 0.6 : 0.5;
+                            // Determine fade duration based on current state
+                            let fadeDuration;
+                            if (!otherPlayer.isMoving) {
+                                // Transitioning from idle to walk forward
+                                fadeDuration = 1.2;
+                            } else if (otherPlayer.isMoving && otherPlayer.isMovingBackwards) {
+                                // Switching from walk backwards to walk forward
+                                fadeDuration = 1.0;
+                            } else {
+                                // Already walking forward
+                                fadeDuration = 0.5;
+                            }
+                            // Reset to beginning before fading
+                            otherPlayer.walkAction.reset();
+                            otherPlayer.walkAction.time = 0;
                             fadeToAction(otherPlayer, otherPlayer.walkAction, fadeDuration);
                         }
                     }
                     otherPlayer.isMoving = true;
                     otherPlayer.isMovingBackwards = isBackwards;
                 } else if (!data.isMoving && otherPlayer.isMoving && otherPlayer.idleAction) {
-                    fadeToAction(otherPlayer, otherPlayer.idleAction, 0.5);
+                    // Longer fade when returning to idle
+                    fadeToAction(otherPlayer, otherPlayer.idleAction, 1.0);
                     otherPlayer.isMoving = false;
                     otherPlayer.isMovingBackwards = false;
+                }
+                }
+            } else {
+                // Animations not loaded yet, just update movement state
+                if (typeof data.isMoving === 'boolean') {
+                    otherPlayer.isMoving = data.isMoving;
+                    otherPlayer.isMovingBackwards = data.isMovingBackwards === true;
                 }
             }
         }
@@ -747,10 +781,11 @@ function createPlayerCharacter() {
     // Load models - make walkBackwards optional so character still loads if it fails
     Promise.all([
         loadWalkGLTF(), 
-        loadIdleGLTF(), 
-        loadWalkBackwardsGLTF().catch(() => null) // Don't fail if walkbackwards fails
+        loadIdleGLTF()
+        // No longer need walkBackwards - we'll reverse walk forwards instead
     ])
-        .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
+        .then(([walkGltf, idleGltf]) => {
+            // walkBackwardsGltf is no longer used - we reverse walk.glb instead
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
             model.traverse((child) => {
@@ -780,60 +815,140 @@ function createPlayerCharacter() {
             let idleAction = null;
             let currentAction = null;
             
+            // Find the skeleton in the cloned model
+            let skeleton = null;
+            model.traverse((child) => {
+                if (child.isSkinnedMesh && child.skeleton) {
+                    skeleton = child.skeleton;
+                    console.log('=== SKELETON DEBUG ===');
+                    console.log('Found skeleton in model:', skeleton.bones.length, 'bones');
+                    // Log ALL bone names for debugging
+                    const allBoneNames = skeleton.bones.map(b => b.name);
+                    console.log('ALL skeleton bone names:', allBoneNames);
+                    console.log('First 10 bone names:', allBoneNames.slice(0, 10));
+                }
+            });
+            
+            if (!skeleton) {
+                console.error('ERROR: No skeleton found in cloned model!');
+            }
+            
             // Load walk animation from walk.glb
             if (walkGltf.animations && walkGltf.animations.length > 0) {
                 const walkClip = walkGltf.animations[0];
-                console.log('Loading walk animation:', walkClip.name || 'unnamed');
-                walkAction = mixer.clipAction(walkClip);
+                console.log('Loading walk animation:', walkClip.name || 'unnamed', 'tracks:', walkClip.tracks.length);
+                
+                // Log track names to see what bones they reference
+                const trackNames = walkClip.tracks.slice(0, 10).map(t => t.name);
+                console.log('Sample animation track names:', trackNames);
+                
+                // Try to find the clip by name first, or use first one
+                let clipToUse = walkClip;
+                if (walkGltf.animations.length > 1) {
+                    const namedClip = walkGltf.animations.find(clip => clip.name && (clip.name.toLowerCase().includes('walk') || clip.name.toLowerCase().includes('forward')));
+                    if (namedClip) clipToUse = namedClip;
+                }
+                
+                walkAction = mixer.clipAction(clipToUse);
                 if (walkAction) {
+                    // Check if the action actually has any effective tracks
+                    // In Three.js, property bindings are stored internally and may not be directly accessible
+                    // Instead, check if the action is properly configured
+                    console.log('Walk action created successfully');
+                    console.log('Action clip:', walkAction.getClip().name);
+                    console.log('Action mixer:', walkAction.getMixer() === mixer);
+                    
                     walkAction.setLoop(THREE.LoopRepeat);
                     walkAction.reset();
-                    walkAction.stop();
-                    console.log('Walk action created successfully');
+                    walkAction.enabled = true;
+                    walkAction.paused = false;
+                    walkAction.setEffectiveWeight(1.0);
+                    // Walk forward - play walk.glb normally
+                    walkAction.setEffectiveTimeScale(1.0);
+                    
+                    // Verify the action is set up correctly
+                    console.log('Walk action configured - enabled:', walkAction.enabled, 'paused:', walkAction.paused, 'weight:', walkAction.getEffectiveWeight());
+                    
+                    // Test play immediately to verify it works
+                    walkAction.play();
+                    setTimeout(() => {
+                        console.log('Walk action test after 100ms - time:', walkAction.time, 'weight:', walkAction.getEffectiveWeight());
+                    }, 100);
+                    walkAction.stop(); // Stop it for now, will be started by movement system
                 } else {
-                    console.error('Failed to create walk action');
+                    console.error('Failed to create walk action - mixer.clipAction returned null');
+                    console.log('Available animations:', walkGltf.animations.map(a => a.name || 'unnamed'));
                 }
             } else {
                 console.warn('No walk animation found in walk.glb. Animations array:', walkGltf.animations);
             }
             
-            // Load walk backwards animation from walkbackwards.glb
-            if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
-                const walkBackwardsClip = walkBackwardsGltf.animations[0];
-                console.log('Loading walk backwards animation:', walkBackwardsClip.name || 'unnamed');
-                walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
+            // Use reversed walk forwards animation for walk backwards
+            // This reverses all keyframes of the walk forwards animation
+            if (walkGltf && walkGltf.animations && walkGltf.animations.length > 0) {
+                const walkClip = walkGltf.animations[0];
+                console.log('Creating walk backwards from reversed walk forwards animation');
+                
+                // Use the same walk forwards clip but play it backwards
+                walkBackwardsAction = mixer.clipAction(walkClip);
                 if (walkBackwardsAction) {
                     walkBackwardsAction.setLoop(THREE.LoopRepeat);
                     walkBackwardsAction.reset();
-                    walkBackwardsAction.stop();
-                    console.log('Walk backwards action created successfully');
-                } else {
-                    console.error('Failed to create walk backwards action');
+                    walkBackwardsAction.enabled = true;
+                    walkBackwardsAction.paused = false;
+                    walkBackwardsAction.setEffectiveWeight(1.0);
+                    // Walk backwards - reverse walk.glb animation
+                    walkBackwardsAction.setEffectiveTimeScale(-1.0);
+                    console.log('Walk backwards (reversed walk forwards) action configured');
                 }
             } else {
-                console.warn('No walk backwards animation found. walkBackwardsGltf:', !!walkBackwardsGltf, 'animations:', walkBackwardsGltf?.animations);
+                console.warn('No walk forwards animation found to reverse for walk backwards');
             }
             
             // Load idle animation from idle.glb
-            if (idleGltf.animations && idleGltf.animations.length > 0) {
+            if (idleGltf && idleGltf.animations && idleGltf.animations.length > 0) {
                 const idleClip = idleGltf.animations[0];
-                console.log('Loading idle animation:', idleClip.name || 'unnamed');
-                idleAction = mixer.clipAction(idleClip);
+                console.log('Loading idle animation:', idleClip.name || 'unnamed', 'tracks:', idleClip.tracks.length);
+                
+                // Try to find the clip by name first, or use first one
+                let clipToUse = idleClip;
+                if (idleGltf.animations.length > 1) {
+                    const namedClip = idleGltf.animations.find(clip => clip.name && (clip.name.toLowerCase().includes('idle') || clip.name.toLowerCase().includes('rest')));
+                    if (namedClip) clipToUse = namedClip;
+                }
+                
+                idleAction = mixer.clipAction(clipToUse);
                 if (idleAction) {
+                    console.log('Idle action created successfully');
+                    console.log('Action clip:', idleAction.getClip().name);
+                    
                     idleAction.setLoop(THREE.LoopRepeat);
                     idleAction.reset();
+                    idleAction.enabled = true;
+                    idleAction.paused = false;
+                    idleAction.setEffectiveWeight(1.0);
+                    
                     idleAction.play();
                     currentAction = idleAction;
-                    console.log('Idle action playing');
+                    console.log('Idle action playing - weight:', idleAction.getEffectiveWeight(), 'enabled:', idleAction.enabled);
                 } else {
                     console.error('Failed to create idle action');
+                    // Fallback to walk animation if idle not available
+                    if (walkAction) {
+                        idleAction = walkAction;
+                        walkAction.play();
+                        currentAction = walkAction;
+                        console.warn('Falling back to walk animation as idle');
+                    }
                 }
             } else {
-                console.warn('No idle animation found in idle.glb. Animations array:', idleGltf.animations);
+                console.warn('No idle animation found in idle.glb. Animations array:', idleGltf?.animations);
                 // Fallback to walk animation if idle not available
                 if (walkAction) {
+                    idleAction = walkAction;
                     walkAction.play();
                     currentAction = walkAction;
+                    console.warn('Falling back to walk animation as idle');
                 }
             }
             
@@ -850,7 +965,7 @@ function createPlayerCharacter() {
             player.isMoving = false;
             player.isMovingBackwards = false;
             
-            // Ensure walk and walkBackwards actions are stopped initially
+            // Ensure walk and walkBackwards actions are stopped initially (idle should be playing)
             if (walkAction) walkAction.stop();
             if (walkBackwardsAction) walkBackwardsAction.stop();
             
@@ -977,10 +1092,11 @@ function addOtherPlayer(playerData) {
     // Load models - make walkBackwards optional so character still loads if it fails
     Promise.all([
         loadWalkGLTF(), 
-        loadIdleGLTF(), 
-        loadWalkBackwardsGLTF().catch(() => null) // Don't fail if walkbackwards fails
+        loadIdleGLTF()
+        // No longer need walkBackwards - we'll reverse walk forwards instead
     ])
-        .then(([walkGltf, idleGltf, walkBackwardsGltf]) => {
+        .then(([walkGltf, idleGltf]) => {
+            // walkBackwardsGltf is no longer used - we reverse walk.glb instead
             const model = THREE.SkeletonUtils.clone(walkGltf.scene);
             
             model.traverse((child) => {
@@ -1011,40 +1127,92 @@ function addOtherPlayer(playerData) {
             let idleAction = null;
             let currentAction = null;
             
+            // Find the skeleton in the cloned model
+            let skeleton = null;
+            model.traverse((child) => {
+                if (child.isSkinnedMesh && child.skeleton) {
+                    skeleton = child.skeleton;
+                }
+            });
+            
             // Load walk animation from walk.glb
             if (walkGltf.animations && walkGltf.animations.length > 0) {
                 const walkClip = walkGltf.animations[0];
-                walkAction = mixer.clipAction(walkClip);
-                walkAction.setLoop(THREE.LoopRepeat);
-                walkAction.reset();
-                walkAction.stop();
+                
+                // Try to find the clip by name first, or use first one
+                let clipToUse = walkClip;
+                if (walkGltf.animations.length > 1) {
+                    const namedClip = walkGltf.animations.find(clip => clip.name && (clip.name.toLowerCase().includes('walk') || clip.name.toLowerCase().includes('forward')));
+                    if (namedClip) clipToUse = namedClip;
+                }
+                
+                walkAction = mixer.clipAction(clipToUse);
+                if (walkAction) {
+                    const effectiveTracks = walkAction._propertyBindings ? walkAction._propertyBindings.length : 0;
+                    if (effectiveTracks === 0) {
+                        console.warn('WARNING: Walk action has no effective tracks for other player:', playerData.username);
+                    }
+                    walkAction.setLoop(THREE.LoopRepeat);
+                    walkAction.reset();
+                    walkAction.enabled = true;
+                    walkAction.paused = false;
+                    // Walk forward - play walk.glb normally
+                    walkAction.setEffectiveTimeScale(1.0);
+                }
             } else {
                 console.warn('No walk animation found in walk.glb for other player:', playerData.username);
             }
             
-            // Load walk backwards animation from walkbackwards.glb
-            if (walkBackwardsGltf && walkBackwardsGltf.animations && walkBackwardsGltf.animations.length > 0) {
-                const walkBackwardsClip = walkBackwardsGltf.animations[0];
-                walkBackwardsAction = mixer.clipAction(walkBackwardsClip);
-                walkBackwardsAction.setLoop(THREE.LoopRepeat);
-                walkBackwardsAction.reset();
-                walkBackwardsAction.stop();
-            } else {
-                console.warn('No walk backwards animation found in walkbackwards.glb for other player:', playerData.username);
+            // Use reversed walk forwards animation for walk backwards
+            if (walkGltf && walkGltf.animations && walkGltf.animations.length > 0) {
+                const walkClip = walkGltf.animations[0];
+                walkBackwardsAction = mixer.clipAction(walkClip);
+                if (walkBackwardsAction) {
+                    walkBackwardsAction.setLoop(THREE.LoopRepeat);
+                    walkBackwardsAction.reset();
+                    walkBackwardsAction.enabled = true;
+                    walkBackwardsAction.paused = false;
+                    walkBackwardsAction.setEffectiveWeight(1.0);
+                    // Walk backwards - reverse walk.glb animation
+                    walkBackwardsAction.setEffectiveTimeScale(-1.0);
+                    console.log('Walk backwards (reversed walk forwards) configured for other player:', playerData.username);
+                }
             }
             
             // Load idle animation from idle.glb
-            if (idleGltf.animations && idleGltf.animations.length > 0) {
+            if (idleGltf && idleGltf.animations && idleGltf.animations.length > 0) {
                 const idleClip = idleGltf.animations[0];
-                idleAction = mixer.clipAction(idleClip);
-                idleAction.setLoop(THREE.LoopRepeat);
-                idleAction.reset();
-                idleAction.play();
-                currentAction = idleAction;
+                
+                // Try to find the clip by name first
+                let clipToUse = idleClip;
+                if (idleGltf.animations.length > 1) {
+                    const namedClip = idleGltf.animations.find(clip => clip.name && (clip.name.toLowerCase().includes('idle') || clip.name.toLowerCase().includes('rest')));
+                    if (namedClip) clipToUse = namedClip;
+                }
+                
+                idleAction = mixer.clipAction(clipToUse);
+                if (idleAction) {
+                    idleAction.setLoop(THREE.LoopRepeat);
+                    idleAction.reset();
+                    idleAction.enabled = true;
+                    idleAction.paused = false;
+                    idleAction.setEffectiveWeight(1.0);
+                    idleAction.play();
+                    currentAction = idleAction;
+                } else {
+                    console.warn('Failed to create idle action for other player:', playerData.username);
+                    // Fallback to walk animation if idle not available
+                    if (walkAction) {
+                        idleAction = walkAction;
+                        walkAction.play();
+                        currentAction = walkAction;
+                    }
+                }
             } else {
                 console.warn('No idle animation found in idle.glb for other player:', playerData.username);
                 // Fallback to walk animation if idle not available
                 if (walkAction) {
+                    idleAction = walkAction;
                     walkAction.play();
                     currentAction = walkAction;
                 }
@@ -1057,6 +1225,7 @@ function addOtherPlayer(playerData) {
             
             const otherPlayer = otherPlayers.get(playerData.id);
             if (otherPlayer) {
+                // CRITICAL: Set up all animation properties
                 otherPlayer.mixer = mixer;
                 otherPlayer.walkAction = walkAction;
                 otherPlayer.walkBackwardsAction = walkBackwardsAction;
@@ -1065,13 +1234,41 @@ function addOtherPlayer(playerData) {
                 otherPlayer.isMoving = Boolean(playerData.isMoving);
                 otherPlayer.isMovingBackwards = Boolean(playerData.isMovingBackwards);
                 
+                // Ensure walk actions are stopped initially
+                if (walkAction) walkAction.stop();
+                if (walkBackwardsAction) walkBackwardsAction.stop();
+                
                 if (otherPlayer.isMoving) {
                     if (otherPlayer.isMovingBackwards && walkBackwardsAction) {
-                        fadeToAction(otherPlayer, walkBackwardsAction, 0.5);
+                        // Use appropriate fade duration based on state
+                        const fadeDuration = (!otherPlayer.currentAction || otherPlayer.currentAction === idleAction) ? 1.2 : 0.8;
+                        // Reset to beginning before fading
+                        walkBackwardsAction.reset();
+                        walkBackwardsAction.time = 0;
+                        fadeToAction(otherPlayer, walkBackwardsAction, fadeDuration);
                     } else if (walkAction) {
-                        fadeToAction(otherPlayer, walkAction, 0.5);
+                        // Use appropriate fade duration based on state
+                        const fadeDuration = (!otherPlayer.currentAction || otherPlayer.currentAction === idleAction) ? 1.2 : 0.5;
+                        // Reset to beginning before fading
+                        walkAction.reset();
+                        walkAction.time = 0;
+                        fadeToAction(otherPlayer, walkAction, fadeDuration);
+                    }
+                } else {
+                    // Start with idle animation if not moving
+                    if (idleAction) {
+                        idleAction.setEffectiveWeight(1.0);
+                        idleAction.enabled = true;
+                        idleAction.paused = false;
+                        idleAction.reset();
+                        idleAction.time = 0;
+                        idleAction.play();
+                        otherPlayer.currentAction = idleAction;
+                        console.log('Starting idle animation for other player:', playerData.username);
                     }
                 }
+            } else {
+                console.warn('Other player not found when setting up animations:', playerData.id);
             }
         })
         .catch((error) => {
@@ -1111,36 +1308,94 @@ function fadeToAction(character, newAction, duration = 0.5) {
     
     const oldAction = character.currentAction;
     
-    if (oldAction && oldAction !== newAction) {
-        // Stop the old action immediately to prevent glitching
+    // If it's the same action, don't do anything - just ensure it's playing
+    if (oldAction === newAction) {
+        // CRITICAL: Always ensure time scale is correct even for same action
+        if (character.walkBackwardsAction === newAction) {
+            newAction.setEffectiveTimeScale(-1.0); // Walk backwards - reverse walk.glb
+        } else if (character.walkAction === newAction) {
+            newAction.setEffectiveTimeScale(1.0); // Walk forward - play walk.glb normally
+        }
+        if (!newAction.isRunning()) {
+            newAction.play();
+        }
+        newAction.setEffectiveWeight(1.0);
+        newAction.enabled = true;
+        return; // No need to transition
+    }
+    
+    // Different actions - perform fade transition
+    if (oldAction) {
+        // Fade out old action
         oldAction.fadeOut(duration);
         oldAction.enabled = true; // Keep enabled during fade
     }
     
-    if (newAction !== oldAction) {
-        // Ensure new action is properly set up
+    // CRITICAL: Ensure new action is properly enabled and configured BEFORE everything else
+    newAction.enabled = true;
+    newAction.paused = false;
+    
+    // Make sure the action is properly synced with the mixer
+    if (!newAction.getClip()) {
+        console.error('fadeToAction: Animation clip is missing');
+        return;
+    }
+    
+    // CRITICAL: Always reset to beginning (time 0) for walk animations to ensure consistent start
+    // This prevents random starting points that cause glitchy transitions
+    if (character.walkAction === newAction || character.walkBackwardsAction === newAction) {
+        // For walk animations, always reset to time 0 to start from the beginning (frame 0)
         newAction.reset();
-        newAction.setEffectiveTimeScale(1);
-        newAction.setEffectiveWeight(1); // Set to full weight immediately for stronger effect
-        newAction.enabled = true;
-        
-        // Make sure the action is properly synced with the mixer
-        if (!newAction.getClip()) {
-            console.error('fadeToAction: Animation clip is missing');
-            return;
-        }
-        
-        // Ensure the action is properly bound to the mixer
-        if (!newAction.isRunning()) {
-            newAction.play();
-        }
-        
-        // Stronger fade in - set weight immediately then fade
+        newAction.time = 0; // Explicitly set to 0 to ensure we start at frame 0
+    } else if (!newAction.isRunning()) {
+        // For other animations, only reset if not already running
+        newAction.reset();
+    }
+    
+    // CRITICAL: Set time scale based on action type - DO NOT CHANGE THESE VALUES
+    // Walk forward (W key) = walk.glb played normally = time scale 1.0
+    // Walk backwards (S key) = walk.glb played in reverse = time scale -1.0
+    if (character.walkBackwardsAction === newAction) {
+        newAction.setEffectiveTimeScale(-1.0); // Walk backwards - reverse walk.glb
+    } else if (character.walkAction === newAction) {
+        newAction.setEffectiveTimeScale(1.0); // Walk forward - play walk.glb normally (EXACT ANIMATION)
+    } else {
+        newAction.setEffectiveTimeScale(1.0); // Normal speed for other animations (idle, etc)
+    }
+    
+    // Start playing the new action FIRST (important for proper binding)
+    // Make sure it starts from time 0 (frame 0)
+    newAction.time = 0;
+    newAction.play();
+    
+    // CRITICAL: Use crossFadeTo instead of manual fade for more reliable transitions
+    // But first ensure weights are properly set
+    if (oldAction && oldAction !== newAction) {
+        // Use crossfade for smoother transition
+        oldAction.crossFadeTo(newAction, duration, false);
+    } else {
+        // No old action or same action - just fade in
         newAction.setEffectiveWeight(0);
         newAction.fadeIn(duration);
-        
-        console.log('fadeToAction: Playing animation', newAction.getClip().name, 'with duration', duration);
     }
+    
+    // Force enable and ensure proper state
+    newAction.enabled = true;
+    newAction.paused = false;
+    
+    // CRITICAL: Ensure time scale is preserved correctly after crossFadeTo/fadeIn
+    // Walk forward (W key) = walk.glb played normally = time scale 1.0
+    // Walk backwards (S key) = walk.glb played in reverse = time scale -1.0
+    if (character.walkBackwardsAction === newAction) {
+        newAction.setEffectiveTimeScale(-1.0); // Walk backwards - reverse walk.glb
+    } else if (character.walkAction === newAction) {
+        newAction.setEffectiveTimeScale(1.0); // Walk forward - play walk.glb normally (EXACT ANIMATION)
+    } else {
+        newAction.setEffectiveTimeScale(1.0); // Normal speed for other animations
+    }
+    
+    console.log('fadeToAction: Transitioning from', oldAction ? oldAction.getClip().name : 'none', 'to', newAction.getClip().name, 'duration', duration);
+    console.log('fadeToAction: New action state - enabled:', newAction.enabled, 'paused:', newAction.paused, 'running:', newAction.isRunning(), 'weight:', newAction.getEffectiveWeight(), 'timeScale:', newAction.getEffectiveTimeScale());
     
     character.currentAction = newAction;
 }
@@ -1175,13 +1430,26 @@ function updateMovement() {
         // Use walk backwards animation when moving backwards
         if (isMovingBackwards) {
             if (player.mixer && player.walkBackwardsAction) {
-                // Stronger fade when switching between walk directions
-                const fadeDuration = (player.isMoving && !player.isMovingBackwards) ? 0.6 : 0.5;
-                if (!player.isMovingBackwards || player.currentAction !== player.walkBackwardsAction) {
-                    console.log('Switching to walk backwards animation');
+                // Determine fade duration based on current state
+                let fadeDuration;
+                if (!player.isMoving) {
+                    // Transitioning from idle to walk backwards - longer fade for smoothness
+                    fadeDuration = 1.2;
+                } else if (player.isMoving && !player.isMovingBackwards) {
+                    // Switching from walk forward to walk backwards - longer fade to prevent glitchiness
+                    fadeDuration = 1.0;
+                } else {
+                    // Already walking backwards
+                    fadeDuration = 0.8;
+                }
+                
+                if (!player.isMoving || player.isMovingBackwards || player.currentAction !== player.walkBackwardsAction) {
+                    // CRITICAL: Reset to frame 0 before fading for smooth transition
+                    player.walkBackwardsAction.reset();
+                    player.walkBackwardsAction.time = 0;
                     fadeToAction(player, player.walkBackwardsAction, fadeDuration);
-                    player.isMovingBackwards = true;
                     player.isMoving = true;
+                    player.isMovingBackwards = true;
                     stateChanged = true;
                 }
             } else {
@@ -1190,10 +1458,23 @@ function updateMovement() {
         } else {
             // Use forward walk animation
             if (player.mixer && player.walkAction) {
-                // Stronger fade when switching between walk directions
-                const fadeDuration = (player.isMoving && player.isMovingBackwards) ? 0.6 : 0.5;
+                // Determine fade duration based on current state
+                let fadeDuration;
+                if (!player.isMoving) {
+                    // Transitioning from idle to walk forward - longer fade for smoothness
+                    fadeDuration = 1.2;
+                } else if (player.isMoving && player.isMovingBackwards) {
+                    // Switching from walk backwards to walk forward - longer fade to prevent glitchiness
+                    fadeDuration = 1.0;
+                } else {
+                    // Already walking forward
+                    fadeDuration = 0.5;
+                }
+                
                 if (!player.isMoving || player.isMovingBackwards || player.currentAction !== player.walkAction) {
-                    console.log('Switching to walk forward animation');
+                    // CRITICAL: Reset to frame 0 before fading for smooth transition
+                    player.walkAction.reset();
+                    player.walkAction.time = 0;
                     fadeToAction(player, player.walkAction, fadeDuration);
                     player.isMoving = true;
                     player.isMovingBackwards = false;
@@ -1204,7 +1485,8 @@ function updateMovement() {
             }
         }
     } else if (player.mixer && player.idleAction && (player.isMoving || player.isMovingBackwards)) {
-        fadeToAction(player, player.idleAction);
+        // Longer fade when returning to idle for smoothness
+        fadeToAction(player, player.idleAction, 1.0);
         player.isMoving = false;
         player.isMovingBackwards = false;
         stateChanged = true;
