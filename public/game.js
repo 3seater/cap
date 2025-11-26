@@ -1125,7 +1125,7 @@ function updateMovement() {
     // Apply smooth rotation to character if needed
     if (rotateCharacter) {
         const targetRotation = player.mesh.rotation.y + targetRotationOffset;
-        const rotationSpeed = 0.15;
+        const rotationSpeed = 0.045; // 70% less sensitive (was 0.15)
         let rotationDiff = targetRotation - player.mesh.rotation.y;
         
         // Normalize to shortest path
