@@ -232,8 +232,12 @@ document.getElementById('username-field').addEventListener('keypress', (e) => {
 function init() {
     if (isInitialized) return;
     isInitialized = true;
-    
+
     console.log('Initializing game...');
+
+    // Ensure menus are hidden
+    closeEscMenu();
+    closeEmoteWheel();
 
     // Scene
     scene = new THREE.Scene();
@@ -2028,6 +2032,7 @@ function closeEscMenu() {
     const escMenu = document.getElementById('esc-menu');
     if (escMenu) {
         escMenu.classList.add('hidden');
+        escMenu.style.display = 'none'; // Explicitly hide
     }
 }
 
