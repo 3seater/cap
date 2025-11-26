@@ -1304,8 +1304,11 @@ function updateMovement() {
         direction.normalize();
         direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
         
-        player.mesh.position.x += direction.x * moveSpeed;
-        player.mesh.position.z += direction.z * moveSpeed;
+        // Sprint: 30% faster when holding Shift
+        const currentSpeed = keys['shift'] ? moveSpeed * 1.3 : moveSpeed;
+        
+        player.mesh.position.x += direction.x * currentSpeed;
+        player.mesh.position.z += direction.z * currentSpeed;
     }
     
     // Update animation if state changed
