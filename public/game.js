@@ -274,7 +274,6 @@ function init() {
     scene.add(spotlight.target);
     
     createRoom();
-    createFloorFog();
     createFloorDebris();
     createDustParticles();
     createFloatingHat();
@@ -462,11 +461,16 @@ function createRoom() {
     const pillarSpacing = 5;
     const numPillars = Math.floor(hallwayLength / pillarSpacing);
     
-    // Hallway floor
+    // Hallway floor with rough texture
     const floorGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
-    const floorMaterial = new THREE.MeshStandardMaterial({ 
+    const floorTexture = createRoughTexture(512, 512, 0x2a2a2a);
+    const floorMaterial = new THREE.MeshStandardMaterial({
         color: 0x2a2a2a,
-        roughness: 0.8
+        roughness: 0.9,
+        metalness: 0.0,
+        map: floorTexture,
+        normalMap: createNormalMap(512, 512),
+        normalScale: new THREE.Vector2(0.5, 0.5)
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
@@ -485,12 +489,15 @@ function createRoom() {
         createPillar(hallwayWidth / 2 - 1.5, z);
     }
     
-    // Walls - rough damaged appearance
-    const wallMaterial = new THREE.MeshStandardMaterial({ 
+    // Walls - rough damaged appearance with texture
+    const wallTexture = createRoughTexture(256, 256, 0x3a3a3a);
+    const wallMaterial = new THREE.MeshStandardMaterial({
         color: 0x3a3a3a,
         roughness: 1.0,
         metalness: 0.0,
-        flatShading: true
+        map: wallTexture,
+        normalMap: createNormalMap(256, 256),
+        normalScale: new THREE.Vector2(0.3, 0.3)
     });
     
     // Left wall
@@ -546,36 +553,84 @@ function createRoom() {
     backWall.castShadow = true;
     scene.add(backWall);
     
-    // Doorway frame at end - GLOWING to show the way
+    // Solid wall at end with door opening
     const doorHeight = 6;
     const doorWidth = 6;
-    const doorFrameMaterial = new THREE.MeshStandardMaterial({ 
+    const wallMaterial = new THREE.MeshStandardMaterial({
+        color: 0x3a3a3a,
+        roughness: 1.0,
+        metalness: 0.0,
+        flatShading: true
+    });
+
+    // Left wall segment (above door)
+    const leftWallTopGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, wallHeight - doorHeight, 0.5);
+    const leftWallTop = new THREE.Mesh(leftWallTopGeometry, wallMaterial);
+    leftWallTop.position.set(-hallwayWidth / 2 + leftWallTopGeometry.parameters.width / 2, wallHeight - leftWallTopGeometry.parameters.height / 2, hallwayLength);
+    leftWallTop.castShadow = true;
+    leftWallTop.receiveShadow = true;
+    scene.add(leftWallTop);
+
+    // Left wall segment (below door)
+    const leftWallBottomGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, doorHeight, 0.5);
+    const leftWallBottom = new THREE.Mesh(leftWallBottomGeometry, wallMaterial);
+    leftWallBottom.position.set(-hallwayWidth / 2 + leftWallBottomGeometry.parameters.width / 2, doorHeight / 2, hallwayLength);
+    leftWallBottom.castShadow = true;
+    leftWallBottom.receiveShadow = true;
+    scene.add(leftWallBottom);
+
+    // Right wall segment (above door)
+    const rightWallTopGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, wallHeight - doorHeight, 0.5);
+    const rightWallTop = new THREE.Mesh(rightWallTopGeometry, wallMaterial);
+    rightWallTop.position.set(hallwayWidth / 2 - rightWallTopGeometry.parameters.width / 2, wallHeight - rightWallTopGeometry.parameters.height / 2, hallwayLength);
+    rightWallTop.castShadow = true;
+    rightWallTop.receiveShadow = true;
+    scene.add(rightWallTop);
+
+    // Right wall segment (below door)
+    const rightWallBottomGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, doorHeight, 0.5);
+    const rightWallBottom = new THREE.Mesh(rightWallBottomGeometry, wallMaterial);
+    rightWallBottom.position.set(hallwayWidth / 2 - rightWallBottomGeometry.parameters.width / 2, doorHeight / 2, hallwayLength);
+    rightWallBottom.castShadow = true;
+    rightWallBottom.receiveShadow = true;
+    scene.add(rightWallBottom);
+
+    // Top wall segment (above door)
+    const topWallGeometry = new THREE.BoxGeometry(doorWidth, wallHeight - doorHeight, 0.5);
+    const topWall = new THREE.Mesh(topWallGeometry, wallMaterial);
+    topWall.position.set(0, wallHeight - topWallGeometry.parameters.height / 2, hallwayLength);
+    topWall.castShadow = true;
+    topWall.receiveShadow = true;
+    scene.add(topWall);
+
+    // Doorway frame - GLOWING to show the way
+    const doorFrameMaterial = new THREE.MeshStandardMaterial({
         color: 0x4a3020,
         roughness: 0.7,
         emissive: 0xff8844, // Warm orange glow
         emissiveIntensity: 0.5
     });
-    
+
     // Left door frame
     const doorFrameGeometry = new THREE.BoxGeometry(0.5, doorHeight, 0.5);
     const leftDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
     leftDoorFrame.position.set(-doorWidth / 2, doorHeight / 2, hallwayLength);
     leftDoorFrame.castShadow = true;
     scene.add(leftDoorFrame);
-    
+
     // Right door frame
     const rightDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
     rightDoorFrame.position.set(doorWidth / 2, doorHeight / 2, hallwayLength);
     rightDoorFrame.castShadow = true;
     scene.add(rightDoorFrame);
-    
+
     // Top door frame
     const topFrameGeometry = new THREE.BoxGeometry(doorWidth, 0.5, 0.5);
     const topDoorFrame = new THREE.Mesh(topFrameGeometry, doorFrameMaterial);
     topDoorFrame.position.set(0, doorHeight, hallwayLength);
     topDoorFrame.castShadow = true;
     scene.add(topDoorFrame);
-    
+
     // Add glowing light around doorway
     const doorGlowLight = new THREE.PointLight(0xff8844, 1.5, 15);
     doorGlowLight.position.set(0, doorHeight / 2, hallwayLength);
@@ -610,11 +665,14 @@ function createRoom() {
 }
 
 function createPillar(x, z) {
-    const pillarMaterial = new THREE.MeshStandardMaterial({ 
+    const pillarTexture = createRoughTexture(128, 512, 0x5a5a5a);
+    const pillarMaterial = new THREE.MeshStandardMaterial({
         color: 0x5a5a5a,
         roughness: 1.0,
         metalness: 0.0,
-        flatShading: true // Gives a rough, blocky look
+        map: pillarTexture,
+        normalMap: createNormalMap(128, 512),
+        normalScale: new THREE.Vector2(0.4, 0.4)
     });
     
     // Main pillar column - extends to ceiling (8m high)
@@ -678,6 +736,68 @@ function createPillar(x, z) {
 
 let dustParticles = [];
 let floatingHat = null;
+
+// Create procedural rough texture
+function createRoughTexture(width, height, baseColor) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+
+    // Fill with base color
+    context.fillStyle = '#' + baseColor.toString(16).padStart(6, '0');
+    context.fillRect(0, 0, width, height);
+
+    // Add noise for roughness
+    const imageData = context.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 30;
+        data[i] = Math.max(0, Math.min(255, data[i] + noise));     // R
+        data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise)); // G
+        data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise)); // B
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+}
+
+// Create procedural normal map for bump effect
+function createNormalMap(width, height) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+
+    const imageData = context.createImageData(width, height);
+    const data = imageData.data;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4;
+
+            // Create normal map (RGB = XYZ normal)
+            const nx = 0.5 + (Math.random() - 0.5) * 0.2; // X normal
+            const ny = 0.5 + (Math.random() - 0.5) * 0.2; // Y normal
+            const nz = Math.sqrt(1 - nx*nx - ny*ny); // Z normal (normalized)
+
+            data[i] = nx * 255;     // R
+            data[i + 1] = ny * 255; // G
+            data[i + 2] = nz * 255; // B
+            data[i + 3] = 255;      // A
+        }
+    }
+
+    context.putImageData(imageData, 0, 0);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    return texture;
+}
 let floorFogParticles = [];
 
 // Create mysterious floor fog/mist
@@ -1559,7 +1679,6 @@ function animate() {
     });
 
     updateDustParticles();
-    updateFloorFog();
     updateHatAuraParticles();
 
     if (floatingHat) {
