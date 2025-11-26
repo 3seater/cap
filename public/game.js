@@ -410,10 +410,6 @@ function init() {
         if (isPointerLocked && player) {
             const yaw = -e.movementX * 0.002;
             player.mesh.rotation.y += yaw;
-            // Update base rotation when mouse rotates character
-            if (player.baseRotation !== undefined) {
-                player.baseRotation += yaw;
-            }
             
             const pitchDelta = e.movementY * 0.002;
             const newPitch = pitch + pitchDelta;
@@ -1089,6 +1085,11 @@ function updateMovement() {
     let isMoving = false;
     let targetRotationOffset = 0;
     
+    // Initialize stored rotation on first frame
+    if (player.storedRotation === undefined) {
+        player.storedRotation = player.mesh.rotation.y;
+    }
+    
     // Determine movement direction and target rotation based on keys
     if (keys['w'] && keys['a']) {
         // W+A = Forward-left (45 degrees)
@@ -1125,13 +1126,8 @@ function updateMovement() {
     }
     
     if (isMoving) {
-        // Store the base rotation (where mouse is pointing)
-        if (!player.baseRotation) {
-            player.baseRotation = player.mesh.rotation.y;
-        }
-        
-        // Calculate target rotation: base rotation + key offset
-        const targetRotation = player.baseRotation + targetRotationOffset;
+        // Calculate target rotation: stored rotation when keys were first pressed + offset
+        const targetRotation = player.storedRotation + targetRotationOffset;
         
         // Smoothly interpolate current rotation towards target
         const rotationSpeed = 0.15; // Smooth rotation speed
@@ -1141,7 +1137,7 @@ function updateMovement() {
         while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
         while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
         
-        // Apply smooth rotation
+        // Apply smooth rotation to character only
         player.mesh.rotation.y += rotationDiff * rotationSpeed;
         
         // Move forward in the direction the character is currently facing
@@ -1157,8 +1153,8 @@ function updateMovement() {
             player.animState = 'walkForward';
         }
     } else {
-        // Reset base rotation when idle so next movement uses current facing
-        player.baseRotation = player.mesh.rotation.y;
+        // Update stored rotation when not moving so next movement uses current facing
+        player.storedRotation = player.mesh.rotation.y;
         
         // Return to idle when not moving
         if (player.animState !== 'idle') {
