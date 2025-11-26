@@ -274,6 +274,8 @@ function init() {
     scene.add(spotlight.target);
     
     createRoom();
+    createFloorFog();
+    createFloorDebris();
     createDustParticles();
     createFloatingHat();
     createPlayerCharacter();
@@ -483,10 +485,12 @@ function createRoom() {
         createPillar(hallwayWidth / 2 - 1.5, z);
     }
     
-    // Walls
+    // Walls - rough damaged appearance
     const wallMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x3a3a3a,
-        roughness: 0.9
+        roughness: 1.0,
+        metalness: 0.0,
+        flatShading: true
     });
     
     // Left wall
@@ -503,6 +507,24 @@ function createRoom() {
     rightWall.receiveShadow = true;
     rightWall.castShadow = true;
     scene.add(rightWall);
+    
+    // Add cracks and damage to walls
+    for (let i = 0; i < 15; i++) {
+        const crackGeometry = new THREE.BoxGeometry(0.1, Math.random() * 2 + 0.5, 0.1);
+        const crackMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x2a2a2a,
+            roughness: 1.0
+        });
+        const crack = new THREE.Mesh(crackGeometry, crackMaterial);
+        const side = Math.random() > 0.5 ? 1 : -1;
+        crack.position.set(
+            (hallwayWidth / 2) * side,
+            Math.random() * wallHeight,
+            Math.random() * hallwayLength
+        );
+        crack.rotation.set(Math.random() * 0.5, Math.random() * 0.5, Math.random() * 0.5);
+        scene.add(crack);
+    }
     
     // Ceiling
     const ceilingGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
@@ -524,12 +546,14 @@ function createRoom() {
     backWall.castShadow = true;
     scene.add(backWall);
     
-    // Doorway frame at end
+    // Doorway frame at end - GLOWING to show the way
     const doorHeight = 6;
     const doorWidth = 6;
     const doorFrameMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x4a3020,
-        roughness: 0.7
+        roughness: 0.7,
+        emissive: 0xff8844, // Warm orange glow
+        emissiveIntensity: 0.5
     });
     
     // Left door frame
@@ -551,6 +575,11 @@ function createRoom() {
     topDoorFrame.position.set(0, doorHeight, hallwayLength);
     topDoorFrame.castShadow = true;
     scene.add(topDoorFrame);
+    
+    // Add glowing light around doorway
+    const doorGlowLight = new THREE.PointLight(0xff8844, 1.5, 15);
+    doorGlowLight.position.set(0, doorHeight / 2, hallwayLength);
+    scene.add(doorGlowLight);
     
     // Open area beyond door (where hat is)
     const openAreaSize = 50;
@@ -583,37 +612,201 @@ function createRoom() {
 function createPillar(x, z) {
     const pillarMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x5a5a5a,
-        roughness: 0.8,
-        metalness: 0.1
+        roughness: 1.0,
+        metalness: 0.0,
+        flatShading: true // Gives a rough, blocky look
     });
     
-    // Main pillar column
-    const columnGeometry = new THREE.CylinderGeometry(0.5, 0.5, 6, 12);
+    // Main pillar column - extends to ceiling (8m high)
+    const columnGeometry = new THREE.CylinderGeometry(0.5, 0.5, 7, 8); // 8 sides for rough look
     const column = new THREE.Mesh(columnGeometry, pillarMaterial);
-    column.position.set(x, 3, z);
+    column.position.set(x, 3.5, z);
     column.castShadow = true;
     column.receiveShadow = true;
     scene.add(column);
     
     // Base
-    const baseGeometry = new THREE.CylinderGeometry(0.7, 0.8, 0.8, 12);
+    const baseGeometry = new THREE.CylinderGeometry(0.7, 0.8, 0.8, 8);
     const base = new THREE.Mesh(baseGeometry, pillarMaterial);
     base.position.set(x, 0.4, z);
     base.castShadow = true;
     base.receiveShadow = true;
     scene.add(base);
     
-    // Capital (top)
-    const capitalGeometry = new THREE.CylinderGeometry(0.8, 0.6, 0.8, 12);
+    // Capital (top) - reaches ceiling
+    const capitalGeometry = new THREE.CylinderGeometry(0.8, 0.6, 0.8, 8);
     const capital = new THREE.Mesh(capitalGeometry, pillarMaterial);
-    capital.position.set(x, 6.4, z);
+    capital.position.set(x, 7.6, z); // Touches 8m ceiling
     capital.castShadow = true;
     capital.receiveShadow = true;
     scene.add(capital);
+    
+    // Add broken chunks around base randomly
+    if (Math.random() > 0.5) {
+        const chunkGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.3);
+        const chunkMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x4a4a4a,
+            roughness: 1.0,
+            flatShading: true
+        });
+        const chunk = new THREE.Mesh(chunkGeometry, chunkMaterial);
+        chunk.position.set(x + (Math.random() - 0.5) * 0.8, 0.1, z + (Math.random() - 0.5) * 0.8);
+        chunk.rotation.set(Math.random(), Math.random(), Math.random());
+        chunk.castShadow = true;
+        chunk.receiveShadow = true;
+        scene.add(chunk);
+    }
+    
+    // Add cracks/damage to pillar with smaller boxes
+    for (let i = 0; i < 2; i++) {
+        const damageGeometry = new THREE.BoxGeometry(0.15, 0.4, 0.15);
+        const damageMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x3a3a3a,
+            roughness: 1.0
+        });
+        const damage = new THREE.Mesh(damageGeometry, damageMaterial);
+        const angleOffset = Math.random() * Math.PI * 2;
+        damage.position.set(
+            x + Math.cos(angleOffset) * 0.5,
+            Math.random() * 6 + 1,
+            z + Math.sin(angleOffset) * 0.5
+        );
+        damage.rotation.set(Math.random(), Math.random(), Math.random());
+        scene.add(damage);
+    }
 }
 
 let dustParticles = [];
 let floatingHat = null;
+let floorFogParticles = [];
+
+// Create mysterious floor fog/mist
+function createFloorFog() {
+    const fogCount = 30;
+    const hallwayLength = 40;
+    const hallwayWidth = 12;
+    
+    const createFogTexture = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 256;
+        const context = canvas.getContext('2d');
+        
+        const centerX = 128;
+        const centerY = 128;
+        const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 128);
+        gradient.addColorStop(0, 'rgba(180, 180, 200, 0.3)');
+        gradient.addColorStop(0.5, 'rgba(150, 150, 170, 0.15)');
+        gradient.addColorStop(1, 'rgba(120, 120, 140, 0)');
+        
+        context.fillStyle = gradient;
+        context.fillRect(0, 0, 256, 256);
+        
+        return canvas;
+    };
+    
+    const fogTexture = new THREE.CanvasTexture(createFogTexture());
+    fogTexture.needsUpdate = true;
+    
+    for (let i = 0; i < fogCount; i++) {
+        const spriteMaterial = new THREE.SpriteMaterial({
+            map: fogTexture,
+            transparent: true,
+            opacity: 0.3 + Math.random() * 0.2,
+            blending: THREE.NormalBlending,
+            depthTest: true,
+            depthWrite: false
+        });
+        
+        const sprite = new THREE.Sprite(spriteMaterial);
+        const size = 3 + Math.random() * 4; // Large fog clouds
+        sprite.scale.set(size, size, 1);
+        
+        // Position on floor throughout hallway
+        sprite.position.set(
+            (Math.random() - 0.5) * (hallwayWidth - 2),
+            0.3 + Math.random() * 0.5, // Low to ground
+            Math.random() * (hallwayLength + 20) // Throughout hallway and into open area
+        );
+        
+        // Store movement data
+        sprite.userData.velocity = {
+            x: (Math.random() - 0.5) * 0.005,
+            z: (Math.random() - 0.5) * 0.005
+        };
+        sprite.userData.baseY = sprite.position.y;
+        sprite.userData.floatSpeed = 0.5 + Math.random() * 0.5;
+        
+        scene.add(sprite);
+        floorFogParticles.push(sprite);
+    }
+}
+
+function updateFloorFog() {
+    if (!floorFogParticles || floorFogParticles.length === 0) return;
+    
+    const time = clock.getElapsedTime();
+    
+    floorFogParticles.forEach(sprite => {
+        const vel = sprite.userData.velocity;
+        
+        // Slow horizontal drift
+        sprite.position.x += vel.x;
+        sprite.position.z += vel.z;
+        
+        // Gentle floating up and down
+        sprite.position.y = sprite.userData.baseY + Math.sin(time * sprite.userData.floatSpeed) * 0.2;
+        
+        // Wrap around if fog drifts too far
+        if (sprite.position.x > 7) sprite.position.x = -7;
+        if (sprite.position.x < -7) sprite.position.x = 7;
+        if (sprite.position.z > 70) sprite.position.z = -5;
+        if (sprite.position.z < -5) sprite.position.z = 70;
+        
+        // Make sprites face camera
+        if (camera) {
+            sprite.lookAt(camera.position);
+        }
+    });
+}
+
+// Create floor debris - broken stones, rubble
+function createFloorDebris() {
+    const debrisCount = 40;
+    const hallwayLength = 40;
+    const hallwayWidth = 12;
+    
+    const debrisMaterial = new THREE.MeshStandardMaterial({
+        color: 0x4a4a4a,
+        roughness: 1.0,
+        flatShading: true
+    });
+    
+    for (let i = 0; i < debrisCount; i++) {
+        // Random debris shapes
+        const size = Math.random() * 0.3 + 0.1;
+        const debrisGeometry = new THREE.BoxGeometry(
+            size,
+            size * 0.5,
+            size * (0.8 + Math.random() * 0.4)
+        );
+        
+        const debris = new THREE.Mesh(debrisGeometry, debrisMaterial);
+        debris.position.set(
+            (Math.random() - 0.5) * (hallwayWidth - 3),
+            size * 0.25, // Sit on floor
+            Math.random() * hallwayLength
+        );
+        debris.rotation.set(
+            Math.random() * 0.3,
+            Math.random() * Math.PI * 2,
+            Math.random() * 0.3
+        );
+        debris.castShadow = true;
+        debris.receiveShadow = true;
+        scene.add(debris);
+    }
+}
 
 function createDustParticles() {
     const particleCount = 200;
@@ -1378,6 +1571,7 @@ function animate() {
     });
 
     updateDustParticles();
+    updateFloorFog();
     updateHatAuraParticles();
 
     if (floatingHat) {
