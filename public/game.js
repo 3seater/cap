@@ -20,6 +20,88 @@ let pitch = 0;
 let isChatOpen = false;
 let chatMessages = new Map();
 
+// Meme coin stats
+let memeCoinData = null;
+let lastStatsUpdate = 0;
+const STATS_UPDATE_INTERVAL = 30000; // Update every 30 seconds
+
+// Your Solana token contract address (replace with your actual address)
+// Example: const TOKEN_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // USDC
+const TOKEN_ADDRESS = "RwwqrcyNt9CDbCFTib9rs4ESjVJaPTNUK9gymXvpump";
+
+// Fetch meme coin stats from DexScreener (free API)
+async function fetchMemeCoinStats() {
+    try {
+        const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${TOKEN_ADDRESS}`);
+        const data = await response.json();
+
+        if (data.pairs && data.pairs.length > 0) {
+            // Get the most liquid pair (usually first one)
+            const pair = data.pairs[0];
+            memeCoinData = {
+                symbol: pair.baseToken.symbol,
+                name: pair.baseToken.name,
+                price: parseFloat(pair.priceUsd),
+                marketCap: pair.marketCap || 0,
+                liquidity: pair.liquidity?.usd || 0,
+                volume24h: pair.volume?.h24 || 0,
+                priceChange24h: pair.priceChange?.h24 || 0,
+                dex: pair.dexId,
+                pairAddress: pair.pairAddress,
+                lastUpdated: Date.now()
+            };
+            console.log('Updated meme coin stats:', memeCoinData);
+            updateStatsDisplay();
+        }
+    } catch (error) {
+        console.error('Error fetching meme coin stats:', error);
+        // Fallback to mock data if API fails
+        memeCoinData = {
+            symbol: 'YOUR_TOKEN',
+            name: 'Your Meme Coin',
+            price: 0.001,
+            marketCap: 1000000,
+            liquidity: 50000,
+            volume24h: 25000,
+            priceChange24h: 15.5,
+            lastUpdated: Date.now()
+        };
+        updateStatsDisplay();
+    }
+}
+
+// Format large numbers nicely
+function formatNumber(num) {
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + 'K';
+    return num.toFixed(2);
+}
+
+// Update the stats display in the UI
+function updateStatsDisplay() {
+    if (!memeCoinData) return;
+
+    const statsElement = document.getElementById('meme-coin-stats');
+    if (!statsElement) return;
+
+    const priceColor = memeCoinData.priceChange24h >= 0 ? '#00ff00' : '#ff4444';
+    const changeSymbol = memeCoinData.priceChange24h >= 0 ? '↗' : '↘';
+
+    statsElement.innerHTML = `
+        <div class="stats-header">${memeCoinData.name} (${memeCoinData.symbol})</div>
+        <div class="stats-price">$${memeCoinData.price.toFixed(6)}</div>
+        <div class="stats-change" style="color: ${priceColor}">
+            ${changeSymbol} ${Math.abs(memeCoinData.priceChange24h).toFixed(2)}% (24h)
+        </div>
+        <div class="stats-details">
+            <div>MC: $${formatNumber(memeCoinData.marketCap)}</div>
+            <div>Liq: $${formatNumber(memeCoinData.liquidity)}</div>
+            <div>Vol: $${formatNumber(memeCoinData.volume24h)}</div>
+        </div>
+    `;
+}
+
 function createGLTFLoader() {
     const loader = new THREE.GLTFLoader();
     try {
@@ -74,7 +156,7 @@ function hideLoadingScreen() {
     const loadingScreen = document.getElementById('loading-screen');
     const elapsed = Date.now() - loadingStartTime;
     const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
-    
+
     setTimeout(() => {
         if (loadingScreen) {
             loadingScreen.classList.add('hidden');
@@ -82,6 +164,11 @@ function hideLoadingScreen() {
         document.getElementById('ui-overlay').classList.remove('hidden');
         document.getElementById('chat-container').classList.remove('hidden');
         document.getElementById('chat-hint').classList.remove('hidden');
+
+        // Show meme coin stats if token address is configured
+        if (TOKEN_ADDRESS && TOKEN_ADDRESS !== 'YOUR_SOLANA_TOKEN_ADDRESS_HERE') {
+            document.getElementById('meme-coin-stats').classList.remove('hidden');
+        }
     }, remaining);
 }
 
@@ -184,14 +271,19 @@ function init() {
         console.log('Connected to server');
         serverConnected = true;
         updateLoadingProgress(95, 'Connected!');
-        
+
         socket.emit('playerJoin', {
             username: username,
             position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
             animState: 'idle'
         });
-        
+
+        // Start fetching meme coin stats
+        if (TOKEN_ADDRESS && TOKEN_ADDRESS !== 'YOUR_SOLANA_TOKEN_ADDRESS_HERE') {
+            fetchMemeCoinStats();
+        }
+
         if (modelsLoaded) {
             updateLoadingProgress(100, 'Ready!');
             hideLoadingScreen();
@@ -910,30 +1002,37 @@ function updateMovement() {
 
 function animate() {
     requestAnimationFrame(animate);
-    
+
     const delta = clock.getDelta();
-    
+
     if (player) {
         updateMovement();
-        
+
         if (player.mixer) {
             player.mixer.update(delta);
         }
     }
-    
+
     otherPlayers.forEach((otherPlayer) => {
         if (otherPlayer.mixer) {
             otherPlayer.mixer.update(delta);
         }
     });
-    
+
     updateDustParticles();
-    
+
     if (floatingHat) {
         floatingHat.rotation.y += delta * 0.3;
         floatingHat.position.y = 6 + Math.sin(clock.getElapsedTime() * 0.5) * 0.5;
     }
-    
+
+    // Update meme coin stats periodically
+    const now = Date.now();
+    if (now - lastStatsUpdate > STATS_UPDATE_INTERVAL && TOKEN_ADDRESS && TOKEN_ADDRESS !== 'YOUR_SOLANA_TOKEN_ADDRESS_HERE') {
+        fetchMemeCoinStats();
+        lastStatsUpdate = now;
+    }
+
     renderer.render(scene, camera);
 }
 

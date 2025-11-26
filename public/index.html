@@ -252,6 +252,58 @@
             border-radius: 6px;
             pointer-events: none;
         }
+
+        #meme-coin-stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(16, 71, 210, 0.3);
+            padding: 16px 20px;
+            border-radius: 8px;
+            color: #ffffff;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            min-width: 200px;
+            box-shadow: 0 0 15px rgba(16, 71, 210, 0.1);
+        }
+
+        .stats-header {
+            color: #1047d2;
+            font-weight: 600;
+            font-size: 12px;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+            letter-spacing: -0.3px;
+        }
+
+        .stats-change {
+            font-size: 10px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-details {
+            display: flex;
+            gap: 12px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 400;
+        }
+
+        .stats-details div {
+            white-space: nowrap;
+        }
         
         #loading-screen {
             position: fixed;
@@ -340,6 +392,10 @@
     </div>
     
     <div id="chat-hint" class="hidden">Press T to chat</div>
+
+    <div id="meme-coin-stats" class="hidden">
+        <!-- Stats will be populated by JavaScript -->
+    </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
