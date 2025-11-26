@@ -906,6 +906,7 @@ function updatePlayerAnimation(playerObj, newState) {
     if (!playerObj.mixer || !playerObj.animations) return;
 
     const animations = playerObj.animations;
+    const fadeDuration = 0.3; // Smooth fade duration
 
     // Handle walk animations (forward/backward use same action, just different timeScale)
     if (newState === 'walkForward' || newState === 'walkBackward') {
@@ -920,15 +921,16 @@ function updatePlayerAnimation(playerObj, newState) {
             return; // No need to change actions
         }
 
-        // Switch to walk animation
-        if (playerObj.currentAction) {
-            playerObj.currentAction.stop();
+        // Switch to walk animation with fade
+        if (playerObj.currentAction && playerObj.currentAction !== animations.walk) {
+            playerObj.currentAction.fadeOut(fadeDuration);
         }
 
         // Set correct direction
         animations.walk.timeScale = (newState === 'walkForward') ? 1.0 : -1.0;
         animations.walk.reset();
         animations.walk.time = 0;
+        animations.walk.fadeIn(fadeDuration);
         animations.walk.play();
         playerObj.currentAction = animations.walk;
         return;
@@ -940,14 +942,15 @@ function updatePlayerAnimation(playerObj, newState) {
             return; // Already idle
         }
 
-        // Switch to idle
+        // Switch to idle with fade
         if (playerObj.currentAction) {
-            playerObj.currentAction.stop();
+            playerObj.currentAction.fadeOut(fadeDuration);
         }
 
         if (animations.idle) {
             animations.idle.reset();
             animations.idle.time = 0;
+            animations.idle.fadeIn(fadeDuration);
             animations.idle.play();
             playerObj.currentAction = animations.idle;
         }
@@ -1079,11 +1082,11 @@ function updateMovement() {
         newAnimState = 'walkBackward';
     }
     if (keys['a']) {
-        direction.x -= 1; // Left strafe
+        direction.x += 1; // Left strafe (flipped)
         if (newAnimState === 'idle') newAnimState = 'walkForward'; // Use walk animation for strafing
     }
     if (keys['d']) {
-        direction.x += 1; // Right strafe
+        direction.x -= 1; // Right strafe (flipped)
         if (newAnimState === 'idle') newAnimState = 'walkForward'; // Use walk animation for strafing
     }
     
