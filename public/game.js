@@ -241,12 +241,25 @@ function init() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
     
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+    // Lighting - Atmospheric church lighting
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
     scene.add(ambientLight);
     
+    // Light in hallway (dim)
+    const hallwayLight = new THREE.PointLight(0xffaa55, 0.6, 30);
+    hallwayLight.position.set(0, 6, 10);
+    hallwayLight.castShadow = true;
+    scene.add(hallwayLight);
+    
+    // Light at doorway
+    const doorLight = new THREE.PointLight(0xffaa55, 0.8, 20);
+    doorLight.position.set(0, 5, 40);
+    doorLight.castShadow = true;
+    scene.add(doorLight);
+    
+    // Spotlight over the hat in the open area
     const spotlight = new THREE.SpotLight(0xffffff, 1.5);
-    spotlight.position.set(0, 20, 0);
+    spotlight.position.set(0, 20, 55);
     spotlight.angle = Math.PI / 4;
     spotlight.penumbra = 0.3;
     spotlight.decay = 2;
@@ -256,7 +269,7 @@ function init() {
     spotlight.shadow.mapSize.height = 2048;
     spotlight.shadow.camera.near = 0.5;
     spotlight.shadow.camera.far = 50;
-    spotlight.target.position.set(0, 0, 0);
+    spotlight.target.position.set(0, 0, 55);
     scene.add(spotlight);
     scene.add(spotlight.target);
     
@@ -278,7 +291,7 @@ function init() {
 
         socket.emit('playerJoin', {
             username: username,
-            position: { x: 0, y: 0, z: 0 },
+            position: { x: 0, y: 0, z: 2 },
             rotation: { x: 0, y: 0, z: 0 },
             animState: 'idle'
         });
@@ -440,15 +453,120 @@ function init() {
 }
 
 function createRoom() {
-    const roomRadius = 25;
+    // Church hallway dimensions
+    const hallwayLength = 40;
+    const hallwayWidth = 12;
+    const wallHeight = 8;
+    const pillarSpacing = 5;
+    const numPillars = Math.floor(hallwayLength / pillarSpacing);
     
-    const floorGeometry = new THREE.PlaneGeometry(50, 50);
-    const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+    // Hallway floor
+    const floorGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
+    const floorMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x2a2a2a,
+        roughness: 0.8
+    });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
+    floor.position.z = hallwayLength / 2;
     floor.receiveShadow = true;
     scene.add(floor);
     
+    // Create pillars along both sides
+    for (let i = 0; i < numPillars; i++) {
+        const z = i * pillarSpacing;
+        
+        // Left pillar
+        createPillar(-hallwayWidth / 2 + 1.5, z);
+        
+        // Right pillar
+        createPillar(hallwayWidth / 2 - 1.5, z);
+    }
+    
+    // Walls
+    const wallMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x3a3a3a,
+        roughness: 0.9
+    });
+    
+    // Left wall
+    const leftWallGeometry = new THREE.BoxGeometry(0.5, wallHeight, hallwayLength);
+    const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+    leftWall.position.set(-hallwayWidth / 2, wallHeight / 2, hallwayLength / 2);
+    leftWall.receiveShadow = true;
+    leftWall.castShadow = true;
+    scene.add(leftWall);
+    
+    // Right wall
+    const rightWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
+    rightWall.position.set(hallwayWidth / 2, wallHeight / 2, hallwayLength / 2);
+    rightWall.receiveShadow = true;
+    rightWall.castShadow = true;
+    scene.add(rightWall);
+    
+    // Ceiling
+    const ceilingGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
+    const ceilingMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a,
+        roughness: 0.9
+    });
+    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.set(0, wallHeight, hallwayLength / 2);
+    ceiling.receiveShadow = true;
+    scene.add(ceiling);
+    
+    // Back wall at start (behind spawn)
+    const backWallGeometry = new THREE.BoxGeometry(hallwayWidth, wallHeight, 0.5);
+    const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
+    backWall.position.set(0, wallHeight / 2, -0.25);
+    backWall.receiveShadow = true;
+    backWall.castShadow = true;
+    scene.add(backWall);
+    
+    // Doorway frame at end
+    const doorHeight = 6;
+    const doorWidth = 6;
+    const doorFrameMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x4a3020,
+        roughness: 0.7
+    });
+    
+    // Left door frame
+    const doorFrameGeometry = new THREE.BoxGeometry(0.5, doorHeight, 0.5);
+    const leftDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
+    leftDoorFrame.position.set(-doorWidth / 2, doorHeight / 2, hallwayLength);
+    leftDoorFrame.castShadow = true;
+    scene.add(leftDoorFrame);
+    
+    // Right door frame
+    const rightDoorFrame = new THREE.Mesh(doorFrameGeometry, doorFrameMaterial);
+    rightDoorFrame.position.set(doorWidth / 2, doorHeight / 2, hallwayLength);
+    rightDoorFrame.castShadow = true;
+    scene.add(rightDoorFrame);
+    
+    // Top door frame
+    const topFrameGeometry = new THREE.BoxGeometry(doorWidth, 0.5, 0.5);
+    const topDoorFrame = new THREE.Mesh(topFrameGeometry, doorFrameMaterial);
+    topDoorFrame.position.set(0, doorHeight, hallwayLength);
+    topDoorFrame.castShadow = true;
+    scene.add(topDoorFrame);
+    
+    // Open area beyond door (where hat is)
+    const openAreaSize = 50;
+    const openFloorGeometry = new THREE.PlaneGeometry(openAreaSize, openAreaSize);
+    const openFloorMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x1a1a1a,
+        roughness: 0.8
+    });
+    const openFloor = new THREE.Mesh(openFloorGeometry, openFloorMaterial);
+    openFloor.rotation.x = -Math.PI / 2;
+    openFloor.position.z = hallwayLength + openAreaSize / 2;
+    openFloor.receiveShadow = true;
+    scene.add(openFloor);
+    
+    // Dome over open area
+    const roomRadius = 25;
     const domeGeometry = new THREE.SphereGeometry(roomRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
     const domeMaterial = new THREE.MeshStandardMaterial({ 
         color: 0x0a1a2e,
@@ -457,9 +575,41 @@ function createRoom() {
         metalness: 0.1
     });
     const dome = new THREE.Mesh(domeGeometry, domeMaterial);
-    dome.position.y = roomRadius;
+    dome.position.set(0, roomRadius, hallwayLength + 15);
     dome.receiveShadow = true;
     scene.add(dome);
+}
+
+function createPillar(x, z) {
+    const pillarMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x5a5a5a,
+        roughness: 0.8,
+        metalness: 0.1
+    });
+    
+    // Main pillar column
+    const columnGeometry = new THREE.CylinderGeometry(0.5, 0.5, 6, 12);
+    const column = new THREE.Mesh(columnGeometry, pillarMaterial);
+    column.position.set(x, 3, z);
+    column.castShadow = true;
+    column.receiveShadow = true;
+    scene.add(column);
+    
+    // Base
+    const baseGeometry = new THREE.CylinderGeometry(0.7, 0.8, 0.8, 12);
+    const base = new THREE.Mesh(baseGeometry, pillarMaterial);
+    base.position.set(x, 0.4, z);
+    base.castShadow = true;
+    base.receiveShadow = true;
+    scene.add(base);
+    
+    // Capital (top)
+    const capitalGeometry = new THREE.CylinderGeometry(0.8, 0.6, 0.8, 12);
+    const capital = new THREE.Mesh(capitalGeometry, pillarMaterial);
+    capital.position.set(x, 6.4, z);
+    capital.castShadow = true;
+    capital.receiveShadow = true;
+    scene.add(capital);
 }
 
 let dustParticles = [];
@@ -673,7 +823,7 @@ function updateHatAuraParticles() {
 
 function createFloatingHat() {
     const hatGroup = new THREE.Group();
-    hatGroup.position.set(0, 6.5, 0); // Raised up just a tad
+    hatGroup.position.set(0, 6.5, 55); // In the open area beyond the door
 
     // Brighter light for more aura
     const glowLight = new THREE.PointLight(0x1047d2, 4, 20); // Increased intensity from 2 to 4, range from 15 to 20
@@ -817,7 +967,7 @@ function createPlayerCharacter() {
     sprite.position.y = 2.5;
     group.add(sprite);
     
-    group.position.set(0, 0, 0);
+    group.position.set(0, 0, 2); // Spawn at start of hallway
     scene.add(group);
     
     // Load character model and setup animations
@@ -832,13 +982,13 @@ function createPlayerCharacter() {
     player = {
         mesh: group,
         usernameSprite: sprite,
-        position: { x: 0, y: 0, z: 0 },
+        position: { x: 0, y: 0, z: 2 },
         rotation: { x: 0, y: 0, z: 0 },
         animState: 'idle'
     };
     
-    camera.position.set(0, 4, -3);
-    camera.lookAt(0, 2.5, 0);
+    camera.position.set(0, 4, -1); // Camera behind player at start
+    camera.lookAt(0, 2.5, 2);
 }
 
 // Setup character model with animations
