@@ -22,6 +22,7 @@ let chatMessages = new Map();
 
 // Emote wheel state
 let isEmoteWheelOpen = false;
+let hoveredEmoteId = null;
 
 // Meme coin stats
 let memeCoinData = null;
@@ -364,9 +365,9 @@ function init() {
             return;
         }
 
-        // F key for emote wheel
-        if (key === 'f' && isInitialized && !isChatOpen) {
-            toggleEmoteWheel();
+        // F key for emote wheel (hold to open)
+        if (key === 'f' && isInitialized && !isChatOpen && !isEmoteWheelOpen) {
+            openEmoteWheel();
             e.preventDefault();
             return;
         }
@@ -377,8 +378,20 @@ function init() {
     });
     
     document.addEventListener('keyup', (e) => {
+        const key = e.key.toLowerCase();
+
+        // F key release - close emote wheel and play selected emote
+        if (key === 'f' && isEmoteWheelOpen) {
+            if (hoveredEmoteId) {
+                playEmote(hoveredEmoteId);
+            }
+            closeEmoteWheel();
+            e.preventDefault();
+            return;
+        }
+
         if (!isChatOpen) {
-            keys[e.key.toLowerCase()] = false;
+            keys[key] = false;
         }
     });
     
@@ -1268,69 +1281,64 @@ function escapeHtml(text) {
 }
 
 // Emote wheel functions
-function toggleEmoteWheel() {
-    if (isEmoteWheelOpen) {
-        closeEmoteWheel();
-    } else {
-        openEmoteWheel();
-    }
-}
-
 function openEmoteWheel() {
     if (isChatOpen) return; // Don't open if chat is open
 
     isEmoteWheelOpen = true;
+    hoveredEmoteId = null;
+
+    // Force player to idle pose
+    if (player && player.animations && player.animations.idle) {
+        updatePlayerAnimation(player, 'idle');
+        player.animState = 'idle';
+    }
+
+    // Exit pointer lock to show mouse cursor
+    if (document.pointerLockElement) {
+        document.exitPointerLock();
+    }
+
     const emoteWheel = document.getElementById('emote-wheel');
     if (emoteWheel) {
         emoteWheel.classList.remove('hidden');
     }
 
-    // Add click handlers to emote items
+    // Add hover handlers to track which emote is being hovered
     const emoteItems = document.querySelectorAll('.emote-item');
     emoteItems.forEach(item => {
-        item.addEventListener('click', handleEmoteClick);
+        item.addEventListener('mouseenter', handleEmoteHover);
+        item.addEventListener('mouseleave', handleEmoteUnhover);
     });
-
-    // Add keyboard handlers for number keys (1-8)
-    document.addEventListener('keydown', handleEmoteKey);
 }
 
 function closeEmoteWheel() {
     isEmoteWheelOpen = false;
+    hoveredEmoteId = null;
+
     const emoteWheel = document.getElementById('emote-wheel');
     if (emoteWheel) {
         emoteWheel.classList.add('hidden');
     }
 
-    // Remove click handlers
+    // Remove hover handlers
     const emoteItems = document.querySelectorAll('.emote-item');
     emoteItems.forEach(item => {
-        item.removeEventListener('click', handleEmoteClick);
+        item.removeEventListener('mouseenter', handleEmoteHover);
+        item.removeEventListener('mouseleave', handleEmoteUnhover);
+        item.classList.remove('hovered');
     });
-
-    // Remove keyboard handlers
-    document.removeEventListener('keydown', handleEmoteKey);
 }
 
-function handleEmoteClick(event) {
-    const emoteId = event.target.dataset.emote;
-    playEmote(emoteId);
-    closeEmoteWheel();
+function handleEmoteHover(event) {
+    hoveredEmoteId = event.target.dataset.emote;
+    event.target.classList.add('hovered');
 }
 
-function handleEmoteKey(event) {
-    if (!isEmoteWheelOpen) return;
-
-    const key = event.key;
-    if (key >= '1' && key <= '8') {
-        const emoteId = key;
-        playEmote(emoteId);
-        closeEmoteWheel();
-        event.preventDefault();
-    } else if (key === 'Escape' || key === 'f') {
-        closeEmoteWheel();
-        event.preventDefault();
+function handleEmoteUnhover(event) {
+    if (hoveredEmoteId === event.target.dataset.emote) {
+        hoveredEmoteId = null;
     }
+    event.target.classList.remove('hovered');
 }
 
 function playEmote(emoteId) {

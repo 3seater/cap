@@ -337,20 +337,29 @@
             box-shadow: 0 0 20px rgba(16, 71, 210, 0.5);
         }
 
-        .emote-item:hover {
+        .emote-item:hover, .emote-item.hovered {
             background: rgba(16, 71, 210, 1);
-            transform: scale(1.1);
             box-shadow: 0 0 30px rgba(16, 71, 210, 0.8);
+            border: 3px solid #00ff00;
         }
 
-        .emote-item:nth-child(1) { transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg); }
-        .emote-item:nth-child(2) { transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg); }
-        .emote-item:nth-child(3) { transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg); }
-        .emote-item:nth-child(4) { transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg); }
-        .emote-item:nth-child(5) { transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg); }
-        .emote-item:nth-child(6) { transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg); }
-        .emote-item:nth-child(7) { transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg); }
-        .emote-item:nth-child(8) { transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg); }
+        .emote-item:nth-child(1) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg); }
+        .emote-item:nth-child(2) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg); }
+        .emote-item:nth-child(3) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg); }
+        .emote-item:nth-child(4) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg); }
+        .emote-item:nth-child(5) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg); }
+        .emote-item:nth-child(6) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg); }
+        .emote-item:nth-child(7) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg); }
+        .emote-item:nth-child(8) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg); }
+
+        .emote-item:nth-child(1):hover, .emote-item:nth-child(1).hovered { transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg) scale(1.2); }
+        .emote-item:nth-child(2):hover, .emote-item:nth-child(2).hovered { transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg) scale(1.2); }
+        .emote-item:nth-child(3):hover, .emote-item:nth-child(3).hovered { transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg) scale(1.2); }
+        .emote-item:nth-child(4):hover, .emote-item:nth-child(4).hovered { transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg) scale(1.2); }
+        .emote-item:nth-child(5):hover, .emote-item:nth-child(5).hovered { transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg) scale(1.2); }
+        .emote-item:nth-child(6):hover, .emote-item:nth-child(6).hovered { transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg) scale(1.2); }
+        .emote-item:nth-child(7):hover, .emote-item:nth-child(7).hovered { transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg) scale(1.2); }
+        .emote-item:nth-child(8):hover, .emote-item:nth-child(8).hovered { transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg) scale(1.2); }
 
         @keyframes emotePulse {
             0%, 100% { transform: scale(1); }
