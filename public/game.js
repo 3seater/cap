@@ -1082,85 +1082,72 @@ function updatePlayerCount() {
 function updateMovement() {
     if (!player || isEmoteWheelOpen) return;
     
-    let isMoving = false;
+    const direction = new THREE.Vector3();
+    let newAnimState = 'idle';
+    let rotateCharacter = false;
     let targetRotationOffset = 0;
     
-    // Initialize stored rotation on first frame
-    if (player.storedRotation === undefined) {
-        player.storedRotation = player.mesh.rotation.y;
-    }
-    
-    // Determine movement direction and target rotation based on keys
+    // Determine movement direction and character rotation
     if (keys['w'] && keys['a']) {
         // W+A = Forward-left (45 degrees)
-        targetRotationOffset = Math.PI / 4; // 45 degrees
-        isMoving = true;
+        direction.z += 1;
+        targetRotationOffset = Math.PI / 4; // 45 degrees left
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     } else if (keys['w'] && keys['d']) {
         // W+D = Forward-right (-45 degrees)
-        targetRotationOffset = -Math.PI / 4; // -45 degrees
-        isMoving = true;
-    } else if (keys['s'] && keys['a']) {
-        // S+A = Backward-left (135 degrees)
-        targetRotationOffset = (3 * Math.PI) / 4; // 135 degrees
-        isMoving = true;
-    } else if (keys['s'] && keys['d']) {
-        // S+D = Backward-right (-135 degrees)
-        targetRotationOffset = -(3 * Math.PI) / 4; // -135 degrees
-        isMoving = true;
+        direction.z += 1;
+        targetRotationOffset = -Math.PI / 4; // 45 degrees right
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     } else if (keys['w']) {
         // W = Forward (0 degrees)
-        targetRotationOffset = 0;
-        isMoving = true;
+        direction.z += 1;
+        newAnimState = 'walkForward';
     } else if (keys['s']) {
-        // S = Backward (180 degrees)
-        targetRotationOffset = Math.PI; // 180 degrees
-        isMoving = true;
+        // S = Backward (no rotation, just move backwards)
+        direction.z -= 1;
+        newAnimState = 'walkBackward';
     } else if (keys['a']) {
         // A = Left (90 degrees)
-        targetRotationOffset = Math.PI / 2; // 90 degrees
-        isMoving = true;
+        direction.z += 1; // Move forward after rotating
+        targetRotationOffset = Math.PI / 2; // 90 degrees left
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     } else if (keys['d']) {
         // D = Right (-90 degrees)
-        targetRotationOffset = -Math.PI / 2; // -90 degrees
-        isMoving = true;
+        direction.z += 1; // Move forward after rotating
+        targetRotationOffset = -Math.PI / 2; // 90 degrees right
+        rotateCharacter = true;
+        newAnimState = 'walkForward';
     }
     
-    if (isMoving) {
-        // Calculate target rotation: stored rotation when keys were first pressed + offset
-        const targetRotation = player.storedRotation + targetRotationOffset;
-        
-        // Smoothly interpolate current rotation towards target
-        const rotationSpeed = 0.15; // Smooth rotation speed
+    // Apply smooth rotation to character if needed
+    if (rotateCharacter) {
+        const targetRotation = player.mesh.rotation.y + targetRotationOffset;
+        const rotationSpeed = 0.15;
         let rotationDiff = targetRotation - player.mesh.rotation.y;
         
-        // Normalize rotation difference to shortest path [-PI, PI]
+        // Normalize to shortest path
         while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
         while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
         
-        // Apply smooth rotation to character only
         player.mesh.rotation.y += rotationDiff * rotationSpeed;
+    }
+    
+    // Apply movement
+    if (direction.lengthSq() > 0) {
+        direction.normalize();
+        direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
         
-        // Move forward in the direction the character is currently facing
-        const moveDirection = new THREE.Vector3(0, 0, 1);
-        moveDirection.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-        
-        player.mesh.position.x += moveDirection.x * moveSpeed;
-        player.mesh.position.z += moveDirection.z * moveSpeed;
-        
-        // Always use walk forward animation when moving
-        if (player.animState !== 'walkForward') {
-            updatePlayerAnimation(player, 'walkForward');
-            player.animState = 'walkForward';
-        }
-    } else {
-        // Update stored rotation when not moving so next movement uses current facing
-        player.storedRotation = player.mesh.rotation.y;
-        
-        // Return to idle when not moving
-        if (player.animState !== 'idle') {
-            updatePlayerAnimation(player, 'idle');
-            player.animState = 'idle';
-        }
+        player.mesh.position.x += direction.x * moveSpeed;
+        player.mesh.position.z += direction.z * moveSpeed;
+    }
+    
+    // Update animation if state changed
+    if (newAnimState !== player.animState) {
+        updatePlayerAnimation(player, newAnimState);
+        player.animState = newAnimState;
     }
     
     // Update position references
