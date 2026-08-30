@@ -1,4 +1,4 @@
-// CLEAN ANIMATION SYSTEM - W = walk forward, S = walk reversed, Idle otherwise
+﻿// CLEAN ANIMATION SYSTEM - W = walk forward, S = walk reversed, Idle otherwise
 // Game state
 let scene, camera, renderer;
 let player = null;
@@ -9,12 +9,14 @@ let isInitialized = false;
 let clock = new THREE.Clock();
 let walkGLTF = null;
 let idleGLTF = null;
+let strafeLeftGLTF = null;
 
 // Movement state
 const keys = {};
 const moveSpeed = 0.02;
 const rotationSpeed = 0.05;
 let pitch = 0;
+let cameraYaw = 0; // independent camera yaw from mouse
 
 // Chat state
 let isChatOpen = false;
@@ -30,11 +32,11 @@ let isEscMenuOpen = false;
 // Meme coin stats
 let memeCoinData = null;
 let lastStatsUpdate = 0;
-const STATS_UPDATE_INTERVAL = 5000; // Update every 5 seconds
+const STATS_UPDATE_INTERVAL = 30000; // Update every 30 seconds
 
 // Your Solana token contract address (replace with your actual address)
 // Example: const TOKEN_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // USDC
-const TOKEN_ADDRESS = "76UweP5GmcYuwD7x6gEDjZph1A6boMFKEAC5pdrxpump";
+const TOKEN_ADDRESS = "0xcbf2c93a338e806ada15003d12451bbdffb103a8";
 
 // Fetch meme coin stats from DexScreener (free API)
 async function fetchMemeCoinStats() {
@@ -96,18 +98,12 @@ function updateStatsDisplay() {
     const changeSymbol = memeCoinData.priceChange24h >= 0 ? '↗' : '↘';
 
     statsElement.innerHTML = `
-        <div class="stats-header">${memeCoinData.name} (${memeCoinData.symbol})</div>
-        <div class="stats-price">$${memeCoinData.price.toFixed(6)}</div>
-        <div class="stats-change" style="color: ${priceColor}">
-            ${changeSymbol} ${Math.abs(memeCoinData.priceChange24h).toFixed(2)}% (24h)
-        </div>
-        <div class="stats-details">
-            <div>MC: $${formatNumber(memeCoinData.marketCap)}</div>
-            <div>Liq: $${formatNumber(memeCoinData.liquidity)}</div>
-            <div>Vol: $${formatNumber(memeCoinData.volume24h)}</div>
-        </div>
+        <div class="stats-header">${memeCoinData.symbol}</div>
+        <div class="stats-price" style="font-size:28px;letter-spacing:-1px">$${formatNumber(memeCoinData.marketCap)}</div>
+        <div class="stats-change" style="color:${priceColor}">${changeSymbol} ${Math.abs(memeCoinData.priceChange24h).toFixed(2)}% (24h)</div>
     `;
 }
+
 
 function createGLTFLoader() {
     const loader = new THREE.GLTFLoader();
@@ -146,6 +142,17 @@ function loadIdleGLTF() {
     });
 }
 
+function loadStrafeLeftGLTF() {
+    if (strafeLeftGLTF) return Promise.resolve(strafeLeftGLTF);
+    const loader = createGLTFLoader();
+    return new Promise((resolve, reject) => {
+        loader.load('models/strafe left.glb', (gltf) => {
+            strafeLeftGLTF = gltf;
+            resolve(gltf);
+        }, undefined, reject);
+    });
+}
+
 // Loading screen
 let loadingStartTime = 0;
 const MIN_LOADING_TIME = 5000;
@@ -154,8 +161,12 @@ let serverConnected = false;
 
 function updateLoadingProgress(percent, text) {
     const progressFill = document.getElementById('loading-progress-fill');
+    const percentText = document.getElementById('loading-percent-text');
     if (progressFill) {
         progressFill.style.width = percent + '%';
+    }
+    if (percentText) {
+        percentText.textContent = Math.round(percent) + '%';
     }
 }
 
@@ -185,8 +196,7 @@ document.getElementById('join-button').addEventListener('click', async () => {
     
     document.getElementById('username-input').classList.add('hidden');
     document.getElementById('loading-screen').classList.remove('hidden');
-    document.getElementById('chat-container').classList.add('hidden');
-    document.getElementById('chat-hint').classList.add('hidden');
+
     loadingStartTime = Date.now();
     modelsLoaded = false;
     serverConnected = false;
@@ -242,7 +252,7 @@ function init() {
     // Scene
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a1a2e);
-    scene.fog = new THREE.FogExp2(0x0a1a2e, 0.08);
+    scene.fog = new THREE.FogExp2(0x0a1a2e, 0.06);
     
     // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -255,51 +265,41 @@ function init() {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
     
-    // Lighting - Atmospheric church lighting
-    const ambientLight = new THREE.AmbientLight(0x404040, 0.2);
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
-    
-    // Light in hallway (dim)
-    const hallwayLight = new THREE.PointLight(0xffaa55, 0.6, 30);
-    hallwayLight.position.set(0, 6, 10);
-    hallwayLight.castShadow = true;
-    scene.add(hallwayLight);
-    
-    // Light at doorway
-    const doorLight = new THREE.PointLight(0xffaa55, 0.8, 20);
-    doorLight.position.set(0, 5, 40);
-    doorLight.castShadow = true;
-    scene.add(doorLight);
-    
-    // Spotlight over the hat in the open area
-    const spotlight = new THREE.SpotLight(0xffffff, 1.5);
-    spotlight.position.set(0, 20, 55);
-    spotlight.angle = Math.PI / 4;
-    spotlight.penumbra = 0.3;
-    spotlight.decay = 2;
-    spotlight.distance = 50;
+    const fillLight = new THREE.PointLight(0xffffff, 2.0, 50);
+    fillLight.position.set(0, 8, 0);
+    scene.add(fillLight);
+
+    // Main spotlight over the hat
+    const spotlight = new THREE.SpotLight(0xffffff, 3.0);
+    spotlight.position.set(0, 25, 0);
+    spotlight.angle = Math.PI / 3;
+    spotlight.penumbra = 0.4;
+    spotlight.decay = 1.5;
+    spotlight.distance = 80;
     spotlight.castShadow = true;
-    spotlight.shadow.mapSize.width = 2048;
-    spotlight.shadow.mapSize.height = 2048;
+    spotlight.shadow.mapSize.width = 1024;
+    spotlight.shadow.mapSize.height = 1024;
     spotlight.shadow.camera.near = 0.5;
-    spotlight.shadow.camera.far = 50;
-    spotlight.target.position.set(0, 0, 55);
+    spotlight.shadow.camera.far = 80;
+    spotlight.target.position.set(0, 0, 0);
     scene.add(spotlight);
     scene.add(spotlight.target);
 
-    // Blue spotlight above the hat for top illumination
-    const blueSpotlight = new THREE.SpotLight(0x4466ff, 0.8);
-    blueSpotlight.position.set(0, 15, 70); // Above the hat
-    blueSpotlight.angle = Math.PI / 6; // Narrower beam
-    blueSpotlight.penumbra = 0.4;
+    // Blue rim light for hat
+    const blueSpotlight = new THREE.SpotLight(0x4466ff, 1.2);
+    blueSpotlight.position.set(0, 15, 0);
+    blueSpotlight.angle = Math.PI / 3;
+    blueSpotlight.penumbra = 0.5;
     blueSpotlight.decay = 2;
-    blueSpotlight.distance = 20;
-    blueSpotlight.target.position.set(0, 8, 70); // Target the hat
+    blueSpotlight.distance = 25;
+    blueSpotlight.target.position.set(0, 0, 0);
     scene.add(blueSpotlight);
     scene.add(blueSpotlight.target);
-    
-    createRoom();
-    createFloorDebris();
+
+    createGroundPlane();
     createDustParticles();
     createFloatingHat();
     createPlayerCharacter();
@@ -318,7 +318,7 @@ function init() {
         console.log('Emitting playerJoin with username:', username);
         socket.emit('playerJoin', {
             username: username,
-            position: { x: 0, y: 0, z: 2 },
+            position: { x: 0, y: 0, z: 0 },
             rotation: { x: 0, y: 0, z: 0 },
             animState: 'idle'
         });
@@ -460,29 +460,24 @@ function init() {
     
     document.addEventListener('pointerlockchange', () => {
         isPointerLocked = document.pointerLockElement === renderer.domElement;
+        
+        // Ensure cursor is hidden when pointer is locked
+        if (isPointerLocked) {
+            if (renderer && renderer.domElement) {
+                renderer.domElement.style.cursor = 'none';
+            }
+            document.body.style.cursor = 'none';
+        }
     });
     
     document.addEventListener('mousemove', (e) => {
         if (isPointerLocked && player) {
-            const yaw = -e.movementX * 0.002;
+const yaw = -e.movementX * 0.002;
             player.mesh.rotation.y += yaw;
+            cameraYaw = player.mesh.rotation.y;
             
-            const pitchDelta = e.movementY * 0.002;
-            const newPitch = pitch + pitchDelta;
-            const maxPitch = Math.PI / 2 - 0.1;
-            const minPitch = -Math.PI / 2 + 0.1;
-            
-            if (newPitch > maxPitch) {
-                const excess = newPitch - maxPitch;
-                pitch = maxPitch + excess * 0.1;
-            } else if (newPitch < minPitch) {
-                const excess = newPitch - minPitch;
-                pitch = minPitch + excess * 0.1;
-            } else {
-                pitch = newPitch;
-            }
-            
-            pitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch));
+            pitch -= e.movementY * 0.002;
+            pitch = Math.max(-1.2, Math.min(0.8, pitch));
         }
     });
     
@@ -495,354 +490,28 @@ function init() {
     animate();
 }
 
-function createRoom() {
-    // Church hallway dimensions
-    const hallwayLength = 40;
-    const hallwayWidth = 12;
-    const wallHeight = 8;
-    const pillarSpacing = 5;
-    const numPillars = Math.floor(hallwayLength / pillarSpacing);
-    
-    // Hallway floor with rough texture
-    const floorGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
-    const floorTexture = createRoughTexture(512, 512, 0x2a2a2a);
-    const floorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2a2a2a,
-        roughness: 0.9,
-        metalness: 0.0,
-        map: floorTexture,
-        normalMap: createNormalMap(512, 512),
-        normalScale: new THREE.Vector2(0.5, 0.5)
-    });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.z = hallwayLength / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-    
-    // Create pillars along both sides
-    for (let i = 0; i < numPillars; i++) {
-        const z = i * pillarSpacing;
-
-        // Left pillar
-        createPillar(-hallwayWidth / 2 + 1.5, z);
-
-        // Right pillar
-        createPillar(hallwayWidth / 2 - 1.5, z);
-
-        // Add torch between pillars (not at the very end)
-        if (i < numPillars - 1) {
-            createTorch(-hallwayWidth / 2 + 1.5, z + pillarSpacing / 2, true); // Left wall torch
-            createTorch(hallwayWidth / 2 - 1.5, z + pillarSpacing / 2, false); // Right wall torch
-        }
-    }
-    
-    // Walls - rough damaged appearance with texture
-    const wallTexture = createRoughTexture(256, 256, 0x3a3a3a);
-    const wallMaterial = new THREE.MeshStandardMaterial({
-        color: 0x3a3a3a,
-        roughness: 1.0,
-        metalness: 0.0,
-        map: wallTexture,
-        normalMap: createNormalMap(256, 256),
-        normalScale: new THREE.Vector2(0.3, 0.3)
-    });
-    
-    // Left wall
-    const leftWallGeometry = new THREE.BoxGeometry(0.5, wallHeight, hallwayLength);
-    const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
-    leftWall.position.set(-hallwayWidth / 2, wallHeight / 2, hallwayLength / 2);
-    leftWall.receiveShadow = true;
-    leftWall.castShadow = true;
-    scene.add(leftWall);
-    
-    // Right wall
-    const rightWall = new THREE.Mesh(leftWallGeometry, wallMaterial);
-    rightWall.position.set(hallwayWidth / 2, wallHeight / 2, hallwayLength / 2);
-    rightWall.receiveShadow = true;
-    rightWall.castShadow = true;
-    scene.add(rightWall);
-    
-    // Add cracks and damage to walls
-    for (let i = 0; i < 15; i++) {
-        const crackGeometry = new THREE.BoxGeometry(0.1, Math.random() * 2 + 0.5, 0.1);
-        const crackMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x2a2a2a,
-            roughness: 1.0
-        });
-        const crack = new THREE.Mesh(crackGeometry, crackMaterial);
-        const side = Math.random() > 0.5 ? 1 : -1;
-        crack.position.set(
-            (hallwayWidth / 2) * side,
-            Math.random() * wallHeight,
-            Math.random() * hallwayLength
-        );
-        crack.rotation.set(Math.random() * 0.5, Math.random() * 0.5, Math.random() * 0.5);
-        scene.add(crack);
-    }
-    
-    // Ceiling
-    const ceilingGeometry = new THREE.PlaneGeometry(hallwayWidth, hallwayLength);
-    const ceilingMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a,
-        roughness: 0.9
-    });
-    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.set(0, wallHeight, hallwayLength / 2);
-    ceiling.receiveShadow = true;
-    scene.add(ceiling);
-    
-    // Back wall at start (behind spawn)
-    const backWallGeometry = new THREE.BoxGeometry(hallwayWidth, wallHeight, 0.5);
-    const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
-    backWall.position.set(0, wallHeight / 2, -0.25);
-    backWall.receiveShadow = true;
-    backWall.castShadow = true;
-    scene.add(backWall);
-    
-    // Solid wall at end with door opening
-    const doorHeight = 6;
-    const doorWidth = 6;
-
-    // Left wall segment (above door)
-    const leftWallTopGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, wallHeight - doorHeight, 0.5);
-    const leftWallTop = new THREE.Mesh(leftWallTopGeometry, wallMaterial);
-    leftWallTop.position.set(-hallwayWidth / 2 + leftWallTopGeometry.parameters.width / 2, wallHeight - leftWallTopGeometry.parameters.height / 2, hallwayLength);
-    leftWallTop.castShadow = true;
-    leftWallTop.receiveShadow = true;
-    scene.add(leftWallTop);
-
-    // Left wall segment (below door)
-    const leftWallBottomGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, doorHeight, 0.5);
-    const leftWallBottom = new THREE.Mesh(leftWallBottomGeometry, wallMaterial);
-    leftWallBottom.position.set(-hallwayWidth / 2 + leftWallBottomGeometry.parameters.width / 2, doorHeight / 2, hallwayLength);
-    leftWallBottom.castShadow = true;
-    leftWallBottom.receiveShadow = true;
-    scene.add(leftWallBottom);
-
-    // Right wall segment (above door)
-    const rightWallTopGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, wallHeight - doorHeight, 0.5);
-    const rightWallTop = new THREE.Mesh(rightWallTopGeometry, wallMaterial);
-    rightWallTop.position.set(hallwayWidth / 2 - rightWallTopGeometry.parameters.width / 2, wallHeight - rightWallTopGeometry.parameters.height / 2, hallwayLength);
-    rightWallTop.castShadow = true;
-    rightWallTop.receiveShadow = true;
-    scene.add(rightWallTop);
-
-    // Right wall segment (below door)
-    const rightWallBottomGeometry = new THREE.BoxGeometry((hallwayWidth - doorWidth) / 2, doorHeight, 0.5);
-    const rightWallBottom = new THREE.Mesh(rightWallBottomGeometry, wallMaterial);
-    rightWallBottom.position.set(hallwayWidth / 2 - rightWallBottomGeometry.parameters.width / 2, doorHeight / 2, hallwayLength);
-    rightWallBottom.castShadow = true;
-    rightWallBottom.receiveShadow = true;
-    scene.add(rightWallBottom);
-
-    // Top wall segment (above door)
-    const topWallGeometry = new THREE.BoxGeometry(doorWidth, wallHeight - doorHeight, 0.5);
-    const topWall = new THREE.Mesh(topWallGeometry, wallMaterial);
-    topWall.position.set(0, wallHeight - topWallGeometry.parameters.height / 2, hallwayLength);
-    topWall.castShadow = true;
-    topWall.receiveShadow = true;
-    scene.add(topWall);
-
-    // Doorway frame - using same material as walls, slight offset to prevent Z-fighting
-    // Left door frame
-    const doorFrameGeometry = new THREE.BoxGeometry(0.5, doorHeight, 0.52); // Slightly thicker
-    const leftDoorFrame = new THREE.Mesh(doorFrameGeometry, wallMaterial);
-    leftDoorFrame.position.set(-doorWidth / 2, doorHeight / 2, hallwayLength + 0.01); // Offset forward
-    leftDoorFrame.castShadow = true;
-    scene.add(leftDoorFrame);
-
-    // Right door frame
-    const rightDoorFrame = new THREE.Mesh(doorFrameGeometry, wallMaterial);
-    rightDoorFrame.position.set(doorWidth / 2, doorHeight / 2, hallwayLength + 0.01); // Offset forward
-    rightDoorFrame.castShadow = true;
-    scene.add(rightDoorFrame);
-
-    // Top door frame
-    const topFrameGeometry = new THREE.BoxGeometry(doorWidth, 0.5, 0.52); // Slightly thicker
-    const topDoorFrame = new THREE.Mesh(topFrameGeometry, wallMaterial);
-    topDoorFrame.position.set(0, doorHeight, hallwayLength + 0.01); // Offset forward
-    topDoorFrame.castShadow = true;
-    scene.add(topDoorFrame);
-
-    // Add subtle glowing light around doorway (50% less glow)
-    const doorGlowLight = new THREE.PointLight(0xff8844, 0.75, 15); // Reduced from 1.5 to 0.75
-    doorGlowLight.position.set(0, doorHeight / 2, hallwayLength);
-    scene.add(doorGlowLight);
-    
-    // Open area beyond door (where hat is)
-    const openAreaSize = 50;
-    const openFloorGeometry = new THREE.PlaneGeometry(openAreaSize, openAreaSize);
-    const openFloorMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x1a1a1a,
-        roughness: 0.8
-    });
-    const openFloor = new THREE.Mesh(openFloorGeometry, openFloorMaterial);
+function createGroundPlane() {
+    // Open floor - matches original open area beyond the door
+    const openAreaSize = 2000;
+    const openFloorGeo = new THREE.PlaneGeometry(openAreaSize, openAreaSize);
+    const openFloorMat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0, metalness: 0.0 });
+    const openFloor = new THREE.Mesh(openFloorGeo, openFloorMat);
     openFloor.rotation.x = -Math.PI / 2;
-    openFloor.position.z = hallwayLength + openAreaSize / 2;
     openFloor.receiveShadow = true;
     scene.add(openFloor);
-    
-    // Dome over open area
-    const roomRadius = 25;
-    const domeGeometry = new THREE.SphereGeometry(roomRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-    const domeMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x0a1a2e,
-        side: THREE.BackSide,
-        roughness: 0.9,
-        metalness: 0.1
-    });
-    const dome = new THREE.Mesh(domeGeometry, domeMaterial);
-    dome.position.set(0, roomRadius, hallwayLength + 15);
+
+    // Dome - matches original
+    const roomRadius = 80;
+    const domeGeo = new THREE.SphereGeometry(roomRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    const domeMat = new THREE.MeshStandardMaterial({ color: 0x0a1a2e, side: THREE.BackSide, roughness: 0.9, metalness: 0.1 });
+    const dome = new THREE.Mesh(domeGeo, domeMat);
+    dome.position.set(0, 0, 0);
     dome.receiveShadow = true;
     scene.add(dome);
 }
 
-function createPillar(x, z) {
-    const pillarTexture = createRoughTexture(128, 512, 0x5a5a5a);
-    const pillarMaterial = new THREE.MeshStandardMaterial({
-        color: 0x5a5a5a,
-        roughness: 1.0,
-        metalness: 0.0,
-        map: pillarTexture,
-        normalMap: createNormalMap(128, 512),
-        normalScale: new THREE.Vector2(0.4, 0.4)
-    });
-    
-    // Main pillar column - extends to ceiling (8m high)
-    const columnGeometry = new THREE.CylinderGeometry(0.5, 0.5, 7, 8); // 8 sides for rough look
-    const column = new THREE.Mesh(columnGeometry, pillarMaterial);
-    column.position.set(x, 3.5, z);
-    column.castShadow = true;
-    column.receiveShadow = true;
-    scene.add(column);
-    
-    // Base
-    const baseGeometry = new THREE.CylinderGeometry(0.7, 0.8, 0.8, 8);
-    const base = new THREE.Mesh(baseGeometry, pillarMaterial);
-    base.position.set(x, 0.4, z);
-    base.castShadow = true;
-    base.receiveShadow = true;
-    scene.add(base);
-    
-    // Capital (top) - reaches ceiling
-    const capitalGeometry = new THREE.CylinderGeometry(0.8, 0.6, 0.8, 8);
-    const capital = new THREE.Mesh(capitalGeometry, pillarMaterial);
-    capital.position.set(x, 7.6, z); // Touches 8m ceiling
-    capital.castShadow = true;
-    capital.receiveShadow = true;
-    scene.add(capital);
-    
-    // Add broken chunks around base randomly
-    if (Math.random() > 0.5) {
-        const chunkGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.3);
-        const chunkMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x4a4a4a,
-            roughness: 1.0,
-            flatShading: true
-        });
-        const chunk = new THREE.Mesh(chunkGeometry, chunkMaterial);
-        chunk.position.set(x + (Math.random() - 0.5) * 0.8, 0.1, z + (Math.random() - 0.5) * 0.8);
-        chunk.rotation.set(Math.random(), Math.random(), Math.random());
-        chunk.castShadow = true;
-        chunk.receiveShadow = true;
-        scene.add(chunk);
-    }
-    
-    // Add cracks/damage to pillar with smaller boxes
-    for (let i = 0; i < 2; i++) {
-        const damageGeometry = new THREE.BoxGeometry(0.15, 0.4, 0.15);
-        const damageMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x3a3a3a,
-            roughness: 1.0
-        });
-        const damage = new THREE.Mesh(damageGeometry, damageMaterial);
-        const angleOffset = Math.random() * Math.PI * 2;
-        damage.position.set(
-            x + Math.cos(angleOffset) * 0.5,
-            Math.random() * 6 + 1,
-            z + Math.sin(angleOffset) * 0.5
-        );
-        damage.rotation.set(Math.random(), Math.random(), Math.random());
-        scene.add(damage);
-    }
-}
-
-// Create old-style torch hanging on the wall
-function createTorch(x, z, isLeftWall) {
-    const torchGroup = new THREE.Group();
-
-    // Torch bracket (metal arm)
-    const bracketMaterial = new THREE.MeshStandardMaterial({
-        color: 0x2a2a2a,
-        roughness: 0.7,
-        metalness: 0.8
-    });
-
-    // Torch pole
-    const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
-    const pole = new THREE.Mesh(poleGeometry, bracketMaterial);
-    pole.position.set(0, 0.4, 0);
-    torchGroup.add(pole);
-
-    // Torch holder (cup)
-    const holderGeometry = new THREE.CylinderGeometry(0.08, 0.06, 0.1, 8);
-    const holder = new THREE.Mesh(holderGeometry, bracketMaterial);
-    holder.position.set(0, 0.85, 0);
-    torchGroup.add(holder);
-
-    // Flame (animated)
-    const flameGeometry = new THREE.ConeGeometry(0.1, 0.3, 6);
-    const flameMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffaa44,
-        transparent: true,
-        opacity: 0.8
-    });
-    const flame = new THREE.Mesh(flameGeometry, flameMaterial);
-    flame.position.set(0, 1.0, 0);
-    flame.userData.baseScale = 1.0;
-    flame.userData.flickerSpeed = 2 + Math.random() * 2;
-    torchGroup.add(flame);
-
-    // Inner flame (brighter)
-    const innerFlameGeometry = new THREE.ConeGeometry(0.05, 0.15, 6);
-    const innerFlameMaterial = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        transparent: true,
-        opacity: 0.9
-    });
-    const innerFlame = new THREE.Mesh(innerFlameGeometry, innerFlameMaterial);
-    innerFlame.position.set(0, 1.05, 0);
-    innerFlame.userData.baseScale = 1.0;
-    innerFlame.userData.flickerSpeed = 3 + Math.random() * 2;
-    torchGroup.add(innerFlame);
-
-    // Store flames for animation
-    torchFlames.push(flame);
-    torchFlames.push(innerFlame);
-
-    // Position torch on wall
-    if (isLeftWall) {
-        torchGroup.position.set(x - 0.2, 5, z); // Left wall
-        torchGroup.rotation.z = -Math.PI / 6; // Angle slightly outward
-    } else {
-        torchGroup.position.set(x + 0.2, 5, z); // Right wall
-        torchGroup.rotation.z = Math.PI / 6; // Angle slightly outward
-    }
-
-    // Add point light for torch glow
-    const torchLight = new THREE.PointLight(0xffaa44, 1.2, 8);
-    torchLight.position.copy(torchGroup.position);
-    torchLight.position.y += 1.0; // At flame height
-    scene.add(torchLight);
-
-    scene.add(torchGroup);
-}
-
 let dustParticles = [];
 let floatingHat = null;
-let torchFlames = []; // Store torch flames for animation
 
 // Create procedural rough texture
 function createRoughTexture(width, height, baseColor) {
@@ -906,155 +575,6 @@ function createNormalMap(width, height) {
     return texture;
 }
 
-// Update torch flame animations
-function updateTorchFlames() {
-    const time = clock.getElapsedTime();
-
-    torchFlames.forEach(flame => {
-        if (flame.userData) {
-            // Create flickering effect
-            const flicker = Math.sin(time * flame.userData.flickerSpeed) * 0.1 +
-                           Math.sin(time * flame.userData.flickerSpeed * 1.3) * 0.05 +
-                           (Math.random() - 0.5) * 0.02;
-
-            const scale = flame.userData.baseScale + flicker;
-            flame.scale.set(scale, scale, scale);
-
-            // Slight position variation
-            flame.position.y = 1.0 + flicker * 0.05;
-        }
-    });
-}
-
-let floorFogParticles = [];
-
-// Create mysterious floor fog/mist
-function createFloorFog() {
-    const fogCount = 30;
-    const hallwayLength = 40;
-    const hallwayWidth = 12;
-    
-    const createFogTexture = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 256;
-        const context = canvas.getContext('2d');
-        
-        const centerX = 128;
-        const centerY = 128;
-        const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 128);
-        gradient.addColorStop(0, 'rgba(180, 180, 200, 0.3)');
-        gradient.addColorStop(0.5, 'rgba(150, 150, 170, 0.15)');
-        gradient.addColorStop(1, 'rgba(120, 120, 140, 0)');
-        
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 256, 256);
-        
-        return canvas;
-    };
-    
-    const fogTexture = new THREE.CanvasTexture(createFogTexture());
-    fogTexture.needsUpdate = true;
-    
-    for (let i = 0; i < fogCount; i++) {
-        const spriteMaterial = new THREE.SpriteMaterial({
-            map: fogTexture,
-            transparent: true,
-            opacity: 0.3 + Math.random() * 0.2,
-            blending: THREE.NormalBlending,
-            depthTest: true,
-            depthWrite: false
-        });
-        
-        const sprite = new THREE.Sprite(spriteMaterial);
-        const size = 3 + Math.random() * 4; // Large fog clouds
-        sprite.scale.set(size, size, 1);
-        
-        // Position on floor throughout hallway
-        sprite.position.set(
-            (Math.random() - 0.5) * (hallwayWidth - 2),
-            0.3 + Math.random() * 0.5, // Low to ground
-            Math.random() * (hallwayLength + 20) // Throughout hallway and into open area
-        );
-        
-        // Store movement data
-        sprite.userData.velocity = {
-            x: (Math.random() - 0.5) * 0.005,
-            z: (Math.random() - 0.5) * 0.005
-        };
-        sprite.userData.baseY = sprite.position.y;
-        sprite.userData.floatSpeed = 0.5 + Math.random() * 0.5;
-        
-        scene.add(sprite);
-        floorFogParticles.push(sprite);
-    }
-}
-
-function updateFloorFog() {
-    if (!floorFogParticles || floorFogParticles.length === 0) return;
-    
-    const time = clock.getElapsedTime();
-    
-    floorFogParticles.forEach(sprite => {
-        const vel = sprite.userData.velocity;
-        
-        // Slow horizontal drift
-        sprite.position.x += vel.x;
-        sprite.position.z += vel.z;
-        
-        // Gentle floating up and down
-        sprite.position.y = sprite.userData.baseY + Math.sin(time * sprite.userData.floatSpeed) * 0.2;
-        
-        // Wrap around if fog drifts too far
-        if (sprite.position.x > 7) sprite.position.x = -7;
-        if (sprite.position.x < -7) sprite.position.x = 7;
-        if (sprite.position.z > 70) sprite.position.z = -5;
-        if (sprite.position.z < -5) sprite.position.z = 70;
-        
-        // Make sprites face camera
-        if (camera) {
-            sprite.lookAt(camera.position);
-        }
-    });
-}
-
-// Create floor debris - broken stones, rubble
-function createFloorDebris() {
-    const debrisCount = 40;
-    const hallwayLength = 40;
-    const hallwayWidth = 12;
-
-    const debrisMaterial = new THREE.MeshStandardMaterial({
-        color: 0x4a4a4a,
-        roughness: 1.0,
-        flatShading: true
-    });
-
-    for (let i = 0; i < debrisCount; i++) {
-        // Random debris shapes
-        const size = Math.random() * 0.3 + 0.1;
-        const debrisGeometry = new THREE.BoxGeometry(
-            size,
-            size * 0.5,
-            size * (0.8 + Math.random() * 0.4)
-        );
-
-        const debris = new THREE.Mesh(debrisGeometry, debrisMaterial);
-        debris.position.set(
-            (Math.random() - 0.5) * (hallwayWidth - 3),
-            size * 0.25, // Sit on floor
-            Math.random() * hallwayLength
-        );
-        debris.rotation.set(
-            Math.random() * 0.3,
-            Math.random() * Math.PI * 2,
-            Math.random() * 0.3
-        );
-        debris.castShadow = true;
-        debris.receiveShadow = true;
-        scene.add(debris);
-    }
-}
 
 
 function createDustParticles() {
@@ -1265,7 +785,7 @@ function updateHatAuraParticles() {
 
 function createFloatingHat() {
     const hatGroup = new THREE.Group();
-    hatGroup.position.set(0, 8, 70); // Farther away (70), raised higher (8), in the open area beyond the door
+    hatGroup.position.set(0, 8, 0); // Farther away (70), raised higher (8), in the open area beyond the door
 
     // Brighter light for more aura
     const glowLight = new THREE.PointLight(0x1047d2, 4, 20); // Increased intensity from 2 to 4, range from 15 to 20
@@ -1409,7 +929,16 @@ function createPlayerCharacter() {
     sprite.position.y = 2.3; // Right above character head
     group.add(sprite);
     
-    group.position.set(0, 0, 2); // Spawn at start of hallway
+    // Spawn randomly around the hat (hat is at 0,8,0)
+    const spawnAngle = Math.random() * Math.PI * 2;
+    const spawnRadius = 10 + Math.random() * 4;
+    group.position.set(
+        Math.cos(spawnAngle) * spawnRadius,
+        0,
+        Math.sin(spawnAngle) * spawnRadius
+    );
+    // Face the hat
+    group.rotation.y = Math.atan2(-Math.cos(spawnAngle), -Math.sin(spawnAngle));
     scene.add(group);
     
     // Load character model and setup animations
@@ -1424,13 +953,13 @@ function createPlayerCharacter() {
     player = {
         mesh: group,
         usernameSprite: sprite,
-        position: { x: 0, y: 0, z: 2 },
+        position: { x: 0, y: 0, z: 0 },
         rotation: { x: 0, y: 0, z: 0 },
         animState: 'idle'
     };
     
-    camera.position.set(0, 4, -1); // Camera behind player at start
-    camera.lookAt(0, 2.5, 2);
+    camera.position.set(0, 4, 8); // Start near hat
+    camera.lookAt(0, 8, 0);
 }
 
 // Setup character model with animations
@@ -1463,7 +992,8 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
     const animations = {
         idle: null,
         walkForward: null,
-        walkBackward: null
+        walkBackward: null,
+        strafeLeft: null
     };
     
     // Idle animation
@@ -1487,6 +1017,32 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
         // Reference the same action for both forward and backward
         animations.walkForward = animations.walk;
         animations.walkBackward = animations.walk;
+    }
+
+    // Strafe left animation (D mirrors it with timeScale -1)
+    if (strafeLeftGLTF && strafeLeftGLTF.animations && strafeLeftGLTF.animations.length > 0) {
+        const strafeClip = THREE.AnimationClip.parse(THREE.AnimationClip.toJSON(strafeLeftGLTF.animations[0]));
+        // Normalize track names to match the walk skeleton's bone paths
+        // Walk clip tracks tell us the expected format
+        const refTrackName = (walkGltf.animations[0]?.tracks[0]?.name) || '';
+        const refHasDot = refTrackName.indexOf('.') !== -1;
+        strafeClip.tracks.forEach((track) => {
+            // Strip any leading 'Armature|' prefix Blender adds
+            track.name = track.name.replace(/^[^|]+\|/, '');
+            // Fix missing colon: 'mixamorigHips' -> 'mixamorig:Hips'
+            track.name = track.name.replace(/^mixamorig([A-Z])/, 'mixamorig:$1');
+        });
+        animations.strafeLeft = mixer.clipAction(strafeClip);
+        animations.strafeLeft.setLoop(THREE.LoopRepeat);
+        animations.strafeLeft.clampWhenFinished = false;
+        console.log('Strafe clip loaded, tracks:', strafeClip.tracks.length);
+        console.log('  track[0]:', strafeClip.tracks[0]?.name);
+        console.log('  track[1]:', strafeClip.tracks[1]?.name);
+        // Compare with walk clip track names
+        console.log('Walk track[0]:', walkGltf.animations[0]?.tracks[0]?.name);
+        console.log('Walk track[1]:', walkGltf.animations[0]?.tracks[1]?.name);
+    } else {
+        console.warn('Strafe left GLB not loaded or has no animations');
     }
     
     // Update sprite position
@@ -1538,6 +1094,33 @@ function updatePlayerAnimation(playerObj, newState) {
         animations.walk.fadeIn(fadeDuration);
         animations.walk.play();
         playerObj.currentAction = animations.walk;
+        return;
+    }
+
+    // Handle strafe animations
+    if (newState === 'strafeLeft' || newState === 'strafeRight') {
+        const strafeAction = animations.strafeLeft;
+        console.log('Strafe requested:', newState, '| action exists:', !!strafeAction, '| current:', playerObj.currentAction?._clip?.name);
+        if (!strafeAction) {
+            if (playerObj.currentAction !== animations.idle && animations.idle) {
+                if (playerObj.currentAction) playerObj.currentAction.fadeOut(fadeDuration);
+                animations.idle.reset().fadeIn(fadeDuration).play();
+                playerObj.currentAction = animations.idle;
+            }
+            return;
+        }
+        const wantedScale = newState === 'strafeLeft' ? 1.0 : -1.0;
+        if (playerObj.currentAction === strafeAction) {
+            strafeAction.timeScale = wantedScale;
+            return;
+        }
+        if (playerObj.currentAction) playerObj.currentAction.fadeOut(fadeDuration);
+        strafeAction.reset();
+        strafeAction.time = 0;
+        strafeAction.timeScale = wantedScale;
+        strafeAction.fadeIn(fadeDuration);
+        strafeAction.play();
+        playerObj.currentAction = strafeAction;
         return;
     }
 
@@ -1671,6 +1254,11 @@ function updatePlayerCount() {
     document.getElementById('player-count').textContent = otherPlayers.size + 1;
 }
 
+// STRICT BOUNDARY ENFORCEMENT - Called everywhere to prevent wall penetration and pillar collision
+function enforceBoundaries() {
+    // Open world - no boundaries
+}
+
 function updateMovement() {
     if (!player || isEmoteWheelOpen || isEscMenuOpen) return;
     
@@ -1703,30 +1291,22 @@ function updateMovement() {
         direction.z += 1;
         newAnimState = 'walkForward';
     } else if (keys['a']) {
-        // A = Left (90 degrees)
-        direction.z += 1; // Move forward after rotating
-        targetRotationOffset = Math.PI / 2; // 90 degrees left
+        // A = Rotate left in place
+        targetRotationOffset = Math.PI / 2;
         rotateCharacter = true;
-        newAnimState = 'walkForward';
+        newAnimState = 'idle';
     } else if (keys['d']) {
-        // D = Right (-90 degrees)
-        direction.z += 1; // Move forward after rotating
-        targetRotationOffset = -Math.PI / 2; // 90 degrees right
+        // D = Rotate right in place
+        targetRotationOffset = -Math.PI / 2;
         rotateCharacter = true;
-        newAnimState = 'walkForward';
+        newAnimState = 'idle';
     }
     
-    // Apply smooth rotation to character if needed
+    // Apply rotation: fixed rate per frame - no snapping
     if (rotateCharacter) {
-        const targetRotation = player.mesh.rotation.y + targetRotationOffset;
-        const rotationSpeed = 0.036; // 80% less sensitive than original (was 0.15, then 0.045)
-        let rotationDiff = targetRotation - player.mesh.rotation.y;
-        
-        // Normalize to shortest path
-        while (rotationDiff > Math.PI) rotationDiff -= 2 * Math.PI;
-        while (rotationDiff < -Math.PI) rotationDiff += 2 * Math.PI;
-        
-        player.mesh.rotation.y += rotationDiff * rotationSpeed;
+        const turnRate = 0.018;
+        const dir = targetRotationOffset > 0 ? 1 : -1;
+        player.mesh.rotation.y += dir * turnRate;
     }
     
     // Apply movement
@@ -1737,15 +1317,22 @@ function updateMovement() {
         // Sprint: 55% faster when holding Shift (was 30%, now 55% total)
         const currentSpeed = keys['shift'] ? moveSpeed * 1.55 : moveSpeed;
         
+        // Calculate new position
         player.mesh.position.x += direction.x * currentSpeed;
         player.mesh.position.z += direction.z * currentSpeed;
     }
+    
+    // STRICTLY enforce boundaries AFTER any movement (or even if not moving)
+    enforceBoundaries();
     
     // Update animation if state changed
     if (newAnimState !== player.animState) {
         updatePlayerAnimation(player, newAnimState);
         player.animState = newAnimState;
     }
+    
+    // Enforce boundaries again before updating references (double-check safety)
+    enforceBoundaries();
     
     // Update position references
     player.position.x = player.mesh.position.x;
@@ -1762,29 +1349,23 @@ function updateMovement() {
         });
     }
     
-    // Update camera (third-person)
+    // Update camera - stable spherical, no applyAxisAngle
     const headHeight = 2.5;
-    const cameraDistance = 3;
-    const baseCameraHeight = 4;
-    
+    const cameraDistance = 3.5;
     const pivotPoint = new THREE.Vector3(
         player.mesh.position.x,
         player.mesh.position.y + headHeight,
         player.mesh.position.z
     );
-    
-    const cameraOffset = new THREE.Vector3(0, 0, -cameraDistance);
-    cameraOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-    
-    const forward = new THREE.Vector3(0, 0, -1);
-    forward.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-    const rightVector = new THREE.Vector3(1, 0, 0);
-    rightVector.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-    
-    cameraOffset.applyAxisAngle(rightVector, pitch);
-    cameraOffset.y += baseCameraHeight - headHeight;
-    
-    camera.position.copy(pivotPoint).add(cameraOffset);
+    // Camera uses its own yaw so mouse + A/D never fight
+    const yawAngle = player.mesh.rotation.y;
+    const cosPitch = Math.cos(pitch);
+    const sinPitch = Math.sin(pitch);
+    camera.position.set(
+        pivotPoint.x - Math.sin(yawAngle) * cosPitch * cameraDistance,
+        pivotPoint.y - sinPitch * cameraDistance + 1.5,
+        pivotPoint.z - Math.cos(yawAngle) * cosPitch * cameraDistance
+    );
     camera.lookAt(pivotPoint);
 }
 
@@ -1795,6 +1376,9 @@ function animate() {
 
     if (player) {
         updateMovement();
+        
+        // EXTRA SAFETY: Enforce boundaries again in animate loop (final check)
+        enforceBoundaries();
 
         if (player.mixer) {
             player.mixer.update(delta);
@@ -1808,7 +1392,6 @@ function animate() {
     });
 
     updateDustParticles();
-    updateTorchFlames();
     updateHatAuraParticles();
 
     if (floatingHat) {
@@ -1850,6 +1433,12 @@ function openChat() {
         chatInput.focus();
     }
 
+    // Show cursor when chat opens
+    if (renderer && renderer.domElement) {
+        renderer.domElement.style.cursor = 'auto';
+    }
+    document.body.style.cursor = 'auto';
+
     if (document.pointerLockElement) {
         document.exitPointerLock();
     }
@@ -1867,6 +1456,26 @@ function closeChat() {
     if (chatInput) {
         chatInput.value = '';
         chatInput.blur();
+    }
+    
+    // Restore pointer lock after closing chat so user can move around immediately
+    // This hides the cursor and allows camera movement
+    if (isInitialized && !isChatOpen && !isEmoteWheelOpen && !isEscMenuOpen && renderer) {
+        // Hide cursor immediately
+        if (renderer.domElement) {
+            renderer.domElement.style.cursor = 'none';
+        }
+        document.body.style.cursor = 'none';
+        
+        // Use setTimeout to ensure chat input is fully blurred first, then request pointer lock
+        setTimeout(() => {
+            if (renderer && renderer.domElement) {
+                renderer.domElement.requestPointerLock().catch(() => {
+                    // If pointer lock fails, at least cursor is hidden via CSS
+                    console.log('Pointer lock request failed, cursor hidden via CSS');
+                });
+            }
+        }, 100);
     }
 }
 

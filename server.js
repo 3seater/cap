@@ -16,11 +16,24 @@ const io = socketIo(server, {
 const compression = require('compression');
 app.use(compression());
 
-// Serve static files with caching headers
+// Serve static files - disable caching in development for easier testing
+const isDevelopment = process.env.NODE_ENV !== 'production';
 app.use(express.static(path.join(__dirname, 'public'), {
-  maxAge: '1y', // Cache static files for 1 year
-  etag: true
+  maxAge: isDevelopment ? 0 : '1y', // No cache in dev, 1 year in production
+  etag: !isDevelopment // Disable etag in dev
 }));
+
+// Add no-cache headers for JavaScript files in development
+if (isDevelopment) {
+  app.use((req, res, next) => {
+    if (req.path.endsWith('.js') || req.path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    next();
+  });
+}
 
 // Store connected players
 const players = new Map();

@@ -1,45 +1,194 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Multiplayer Room</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap"
+        rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             overflow: hidden;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #000000;
-        }
-        
-        #canvas-container {
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            background: #0a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             width: 100vw;
             height: 100vh;
         }
-        
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* ── Login Screen ── */
+        #username-input {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 200;
+            width: 300px;
+            background: rgba(5, 15, 30, 0.95);
+            border: 1px solid rgba(16, 71, 210, 0.4);
+            border-radius: 4px;
+            padding: 32px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #username-field {
+            width: 100%;
+            background: rgba(16, 71, 210, 0.06);
+            border: 1px solid rgba(16, 71, 210, 0.25);
+            border-radius: 2px;
+            color: #fff;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 12px;
+            padding: 11px 12px;
+            outline: none;
+            transition: border-color 200ms ease, box-shadow 200ms ease;
+            letter-spacing: 0;
+            margin-bottom: 0;
+        }
+
+        #username-field::placeholder {
+            color: rgba(255, 255, 255, 0.25);
+        }
+
+        #username-field:focus {
+            border-color: #1047d2;
+            box-shadow: 0 0 0 1px rgba(16, 71, 210, 0.3);
+        }
+
+        #join-button {
+            width: 100%;
+            background: #1047d2;
+            color: #fff;
+            border: none;
+            border-radius: 2px;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+            font-size: 10px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            padding: 12px;
+            cursor: pointer;
+            transition: background 150ms ease, box-shadow 150ms ease;
+        }
+
+        #join-button:hover {
+            background: #4a8fff;
+            box-shadow: 0 0 16px rgba(16, 71, 210, 0.5);
+        }
+
+        /* ── Loading Screen ── */
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0a1a2e;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #1047d2;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
+        }
+
+        #loading-screen.hidden {
+            display: none;
+        }
+
+        .loading-label {
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: rgba(16, 71, 210, 0.6);
+            margin-bottom: 20px;
+        }
+
+        #loading-progress-bar {
+            width: 280px;
+            height: 3px;
+            background: rgba(16, 71, 210, 0.12);
+            border-radius: 2px;
+            overflow: visible;
+            position: relative;
+        }
+
+        #loading-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0d3ba8, #1047d2, #4a8fff, #1047d2, #0d3ba8);
+            background-size: 200% 100%;
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: shimmer 1.8s linear infinite;
+            position: relative;
+        }
+
+        #loading-progress-fill::after {
+            content: '';
+            position: absolute;
+            right: -1px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4a8fff;
+            box-shadow: 0 0 8px 3px rgba(74, 143, 255, 0.7), 0 0 16px 6px rgba(16, 71, 210, 0.4);
+        }
+
+        .loading-percent {
+            margin-top: 14px;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            color: rgba(16, 71, 210, 0.5);
+            font-variant-numeric: tabular-nums;
+        }
+
+        #loading-screen h2,
+        #loading-screen p,
+        #loading-progress {
+            display: none;
+        }
+
+        /* ── HUD Panels (unified) ── */
         #ui-overlay {
             position: absolute;
             top: 20px;
             left: 20px;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.75);
+            background: rgba(5, 15, 30, 0.88);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(16, 71, 210, 0.2);
+            border: 1px solid rgba(16, 71, 210, 0.25);
+            border-radius: 4px;
             padding: 12px 16px;
-            border-radius: 8px;
-            color: #ffffff;
-            font-weight: 400;
+            color: #fff;
             font-size: 12px;
-            letter-spacing: 0.2px;
             min-width: 140px;
         }
-        
+
         #ui-overlay .label {
             color: rgba(16, 71, 210, 0.8);
             font-size: 10px;
@@ -48,103 +197,21 @@
             letter-spacing: 1.2px;
             margin-bottom: 6px;
         }
-        
+
         #ui-overlay .value {
-            color: #ffffff;
+            color: #fff;
             font-size: 20px;
             font-weight: 600;
             margin-bottom: 12px;
-            letter-spacing: -0.5px;
         }
-        
+
         #ui-overlay .controls {
             color: rgba(255, 255, 255, 0.5);
             font-size: 10px;
-            font-weight: 400;
-            letter-spacing: 0.8px;
             line-height: 1.4;
         }
-        
-        #username-input {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 200;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(16, 71, 210, 0.25);
-            padding: 32px 40px;
-            border-radius: 12px;
-            color: white;
-            text-align: center;
-            min-width: 300px;
-        }
-        
-        #username-input h2 {
-            font-family: 'Inter', sans-serif;
-            font-weight: 600;
-            font-size: 18px;
-            color: #ffffff;
-            margin-bottom: 20px;
-            letter-spacing: -0.3px;
-        }
-        
-        #username-input input {
-            padding: 12px 16px;
-            font-size: 14px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 400;
-            border: 1px solid rgba(16, 71, 210, 0.4);
-            border-radius: 6px;
-            background: rgba(16, 71, 210, 0.08);
-            color: #ffffff;
-            margin: 10px 0 18px 0;
-            width: 100%;
-            transition: all 0.2s ease;
-            outline: none;
-        }
-        
-        #username-input input:focus {
-            border-color: #1047d2;
-            background: rgba(16, 71, 210, 0.12);
-            box-shadow: 0 0 0 2px rgba(16, 71, 210, 0.15);
-        }
-        
-        #username-input input::placeholder {
-            color: rgba(255, 255, 255, 0.35);
-        }
-        
-        #username-input button {
-            padding: 12px 28px;
-            font-size: 13px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 500;
-            background: #1047d2;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            letter-spacing: 0.8px;
-            text-transform: uppercase;
-            width: 100%;
-        }
-        
-        #username-input button:hover {
-            background: #0d3ba8;
-            transform: translateY(-1px);
-            box-shadow: 0 3px 8px rgba(16, 71, 210, 0.3);
-        }
-        
-        #username-input button:active {
-            transform: translateY(0);
-        }
-        
-        .hidden {
-            display: none !important;
-        }
-        
+
+        /* ── Chat ── */
         #chat-container {
             position: absolute;
             bottom: 20px;
@@ -155,119 +222,105 @@
             display: flex;
             flex-direction: column;
         }
-        
+
         #chat-log {
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(5, 15, 30, 0.88);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(16, 71, 210, 0.3);
+            border: 1px solid rgba(16, 71, 210, 0.25);
             border-radius: 4px;
             padding: 10px 12px;
             max-height: 250px;
             overflow-y: auto;
             margin-bottom: 8px;
-            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
             font-size: 11px;
             color: rgba(16, 71, 210, 0.9);
             line-height: 1.6;
-            box-shadow: 0 0 10px rgba(16, 71, 210, 0.1);
         }
-        
+
         #chat-log::-webkit-scrollbar {
             width: 4px;
         }
-        
+
         #chat-log::-webkit-scrollbar-track {
             background: rgba(16, 71, 210, 0.1);
-            border-radius: 2px;
         }
-        
+
         #chat-log::-webkit-scrollbar-thumb {
             background: rgba(16, 71, 210, 0.4);
             border-radius: 2px;
         }
-        
+
         .chat-message {
             margin-bottom: 4px;
             word-wrap: break-word;
-            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
         }
-        
+
         .chat-username {
-            color: #00ff00;
-            font-weight: 400;
+            color: #0f0;
         }
-        
+
         .chat-username::after {
             content: '>';
             color: rgba(16, 71, 210, 0.6);
             margin: 0 4px;
         }
-        
+
         #chat-input-container {
             display: none;
         }
-        
+
         #chat-input-container.active {
             display: block;
         }
-        
+
         #chat-input {
             width: 100%;
             padding: 10px 14px;
             font-size: 12px;
-            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-            font-weight: 400;
+            font-family: 'IBM Plex Mono', 'Courier New', monospace;
             border: 1px solid rgba(16, 71, 210, 0.4);
             border-radius: 4px;
-            background: rgba(0, 0, 0, 0.8);
-            color: #00ff00;
+            background: rgba(5, 15, 30, 0.88);
+            backdrop-filter: blur(12px);
+            color: #0f0;
             outline: none;
         }
-        
-        #chat-input::before {
-            content: '> ';
-            color: rgba(16, 71, 210, 0.6);
-        }
-        
+
         #chat-input:focus {
             border-color: #1047d2;
             background: rgba(16, 71, 210, 0.12);
-            box-shadow: 0 0 0 2px rgba(16, 71, 210, 0.15);
+            box-shadow: 0 0 0 1px rgba(16, 71, 210, 0.3);
         }
-        
+
         #chat-input::placeholder {
             color: rgba(255, 255, 255, 0.35);
         }
-        
+
         #chat-hint {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            z-index: 99;
-            color: rgba(255, 255, 255, 0.4);
+            position: static;
+            color: rgba(255,255,255,0.35);
             font-size: 10px;
-            font-family: 'Inter', sans-serif;
-            padding: 8px 12px;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 6px;
+            padding: 6px 12px;
             pointer-events: none;
+            letter-spacing: 1px;
         }
 
+        /* ── Meme Coin Stats ── */
         #meme-coin-stats {
             position: absolute;
             top: 20px;
             right: 20px;
             z-index: 100;
-            background: rgba(0, 0, 0, 0.85);
+            background: rgba(5, 15, 30, 0.88);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(16, 71, 210, 0.3);
+            border: 1px solid rgba(16, 71, 210, 0.25);
+            border-radius: 4px;
             padding: 16px 20px;
-            border-radius: 8px;
-            color: #ffffff;
-            font-family: 'Inter', sans-serif;
+            color: #fff;
             font-size: 11px;
             min-width: 200px;
-            box-shadow: 0 0 15px rgba(16, 71, 210, 0.1);
         }
 
         .stats-header {
@@ -275,22 +328,18 @@
             font-weight: 600;
             font-size: 12px;
             margin-bottom: 8px;
-            letter-spacing: 0.5px;
         }
 
         .stats-price {
             font-size: 18px;
             font-weight: 700;
-            color: #ffffff;
             margin-bottom: 4px;
-            letter-spacing: -0.3px;
         }
 
         .stats-change {
             font-size: 10px;
             font-weight: 500;
             margin-bottom: 8px;
-            letter-spacing: 0.5px;
         }
 
         .stats-details {
@@ -298,13 +347,13 @@
             gap: 12px;
             font-size: 9px;
             color: rgba(255, 255, 255, 0.7);
-            font-weight: 400;
         }
 
         .stats-details div {
             white-space: nowrap;
         }
 
+        /* ── Emote Wheel ── */
         #emote-wheel {
             position: fixed;
             top: 50%;
@@ -324,8 +373,9 @@
             position: absolute;
             width: 60px;
             height: 60px;
-            background: rgba(16, 71, 210, 0.9);
-            border: 2px solid #1047d2;
+            background: rgba(5, 15, 30, 0.88);
+            border: 2px solid rgba(16, 71, 210, 0.6);
+            backdrop-filter: blur(12px);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -334,52 +384,126 @@
             cursor: pointer;
             pointer-events: auto;
             transition: all 0.2s ease;
-            box-shadow: 0 0 20px rgba(16, 71, 210, 0.5);
+            box-shadow: 0 0 20px rgba(16, 71, 210, 0.3);
         }
 
-        .emote-item:hover, .emote-item.hovered {
-            background: rgba(16, 71, 210, 1);
+        .emote-item:hover,
+        .emote-item.hovered {
+            background: rgba(16, 71, 210, 0.85);
             box-shadow: 0 0 30px rgba(16, 71, 210, 0.8);
-            border: 3px solid #00ff00;
+            border: 3px solid #0f0;
         }
 
-        .emote-item:nth-child(1) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg); }
-        .emote-item:nth-child(2) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg); }
-        .emote-item:nth-child(3) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg); }
-        .emote-item:nth-child(4) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg); }
-        .emote-item:nth-child(5) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg); }
-        .emote-item:nth-child(6) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg); }
-        .emote-item:nth-child(7) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg); }
-        .emote-item:nth-child(8) { left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg); }
+        /* Emote wheel positioning — keep exactly */
+        .emote-item:nth-child(1) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg);
+        }
 
-        .emote-item:nth-child(1):hover, .emote-item:nth-child(1).hovered { transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg) scale(1.2); }
-        .emote-item:nth-child(2):hover, .emote-item:nth-child(2).hovered { transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg) scale(1.2); }
-        .emote-item:nth-child(3):hover, .emote-item:nth-child(3).hovered { transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg) scale(1.2); }
-        .emote-item:nth-child(4):hover, .emote-item:nth-child(4).hovered { transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg) scale(1.2); }
-        .emote-item:nth-child(5):hover, .emote-item:nth-child(5).hovered { transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg) scale(1.2); }
-        .emote-item:nth-child(6):hover, .emote-item:nth-child(6).hovered { transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg) scale(1.2); }
-        .emote-item:nth-child(7):hover, .emote-item:nth-child(7).hovered { transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg) scale(1.2); }
-        .emote-item:nth-child(8):hover, .emote-item:nth-child(8).hovered { transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg) scale(1.2); }
+        .emote-item:nth-child(2) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg);
+        }
 
+        .emote-item:nth-child(3) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg);
+        }
+
+        .emote-item:nth-child(4) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg);
+        }
+
+        .emote-item:nth-child(5) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg);
+        }
+
+        .emote-item:nth-child(6) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg);
+        }
+
+        .emote-item:nth-child(7) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg);
+        }
+
+        .emote-item:nth-child(8) {
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg);
+        }
+
+        .emote-item:nth-child(1):hover,
+        .emote-item:nth-child(1).hovered {
+            transform: translate(-50%, -50%) rotate(0deg) translateY(-120px) rotate(0deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(2):hover,
+        .emote-item:nth-child(2).hovered {
+            transform: translate(-50%, -50%) rotate(45deg) translateY(-120px) rotate(-45deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(3):hover,
+        .emote-item:nth-child(3).hovered {
+            transform: translate(-50%, -50%) rotate(90deg) translateY(-120px) rotate(-90deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(4):hover,
+        .emote-item:nth-child(4).hovered {
+            transform: translate(-50%, -50%) rotate(135deg) translateY(-120px) rotate(-135deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(5):hover,
+        .emote-item:nth-child(5).hovered {
+            transform: translate(-50%, -50%) rotate(180deg) translateY(-120px) rotate(-180deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(6):hover,
+        .emote-item:nth-child(6).hovered {
+            transform: translate(-50%, -50%) rotate(225deg) translateY(-120px) rotate(-225deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(7):hover,
+        .emote-item:nth-child(7).hovered {
+            transform: translate(-50%, -50%) rotate(270deg) translateY(-120px) rotate(-270deg) scale(1.2);
+        }
+
+        .emote-item:nth-child(8):hover,
+        .emote-item:nth-child(8).hovered {
+            transform: translate(-50%, -50%) rotate(315deg) translateY(-120px) rotate(-315deg) scale(1.2);
+        }
+
+        /* ── ESC Menu ── */
         #esc-menu {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(5, 10, 20, 0.92);
             backdrop-filter: blur(8px);
             z-index: 3000;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #ffffff;
+            color: #fff;
         }
 
         .esc-menu-content {
-            background: rgba(16, 71, 210, 0.1);
-            border: 1px solid rgba(16, 71, 210, 0.3);
-            border-radius: 12px;
+            background: rgba(5, 15, 30, 0.88);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(16, 71, 210, 0.25);
+            border-radius: 4px;
             padding: 40px;
             max-width: 600px;
             width: 90%;
@@ -403,7 +527,7 @@
         .keybind-section h2 {
             font-size: 18px;
             font-weight: 600;
-            color: #ffffff;
+            color: #fff;
             margin-bottom: 15px;
             border-bottom: 1px solid rgba(16, 71, 210, 0.3);
             padding-bottom: 8px;
@@ -421,7 +545,7 @@
 
         .key {
             background: #1047d2;
-            color: #ffffff;
+            color: #fff;
             padding: 4px 12px;
             border-radius: 4px;
             font-weight: 600;
@@ -443,117 +567,117 @@
             font-style: italic;
         }
 
+        /* ── Utility ── */
+        .hidden {
+            display: none !important;
+        }
+
+        /* ── CRT Overlay ── */
+        #crt-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 99999;
+            will-change: transform;
+            box-shadow:
+                inset 2px 0 8px rgba(255, 0, 0, 0.06),
+                inset -2px 0 8px rgba(0, 50, 255, 0.06),
+                inset 0 2px 6px rgba(0, 200, 100, 0.03),
+                inset 0 -2px 6px rgba(0, 50, 255, 0.03);
+        }
+
+        #crt-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(to bottom,
+                    transparent 0px,
+                    transparent 2px,
+                    rgba(0, 0, 0, 0.07) 2px,
+                    rgba(0, 0, 0, 0.07) 4px);
+        }
+
+        #crt-overlay::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center,
+                    transparent 50%,
+                    rgba(0, 0, 0, 0.55) 100%);
+        }
+
+        /* ── Keyframe Animations ── */
         @keyframes emotePulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.05);
+            }
         }
 
         .emote-item.playing-emote {
             animation: emotePulse 0.6s ease-in-out;
         }
-        
-        #loading-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #000000;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: #1047d2;
-            font-family: 'Inter', sans-serif;
-        }
-        
-        #loading-screen.hidden {
-            display: none;
-        }
-        
-        .loading-spinner {
-            font-size: 80px;
-            animation: spin 2s linear infinite;
-            display: inline-block;
-            filter: hue-rotate(200deg) saturate(2.5) brightness(1.1) contrast(1.1);
-        }
-        
-        #loading-progress-bar {
-            width: 200px;
-            height: 2px;
-            background: rgba(16, 71, 210, 0.2);
-            border-radius: 1px;
-            margin-top: 20px;
-            overflow: hidden;
-        }
-        
-        #loading-progress-fill {
-            height: 100%;
-            background: #1047d2;
-            border-radius: 1px;
-            width: 0%;
-            transition: width 0.3s ease;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        #loading-screen h2,
-        #loading-screen p,
-        #loading-progress {
-            display: none;
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
         }
     </style>
 </head>
+
 <body>
     <div id="username-input">
-        <h2>Enter Your Username</h2>
-        <input type="text" id="username-field" placeholder="Your username" maxlength="20" autofocus>
-        <br>
-        <button id="join-button">Join Room</button>
+        <input type="text" id="username-field" placeholder="enter username..." maxlength="20" autofocus>
+        <button id="join-button">ENTER ROOM</button>
     </div>
-    
+
     <div id="loading-screen" class="hidden">
-        <div class="loading-spinner">🧢</div>
+        <div class="loading-label">Loading</div>
         <div id="loading-progress-bar">
             <div id="loading-progress-fill"></div>
         </div>
+        <div class="loading-percent" id="loading-percent-text">0%</div>
     </div>
-    
+
     <div id="canvas-container"></div>
-    
+
     <div id="ui-overlay" class="hidden">
         <div class="label">Players Online</div>
         <div class="value"><span id="player-count">0</span></div>
-        <div class="controls">WASD to move • Mouse to look</div>
+        <div class="controls">WASD to move &bull; Mouse to look</div>
     </div>
-    
+
     <div id="chat-container" class="hidden">
         <div id="chat-log"></div>
         <div id="chat-input-container">
             <input type="text" id="chat-input" placeholder="Type a message..." maxlength="100" />
         </div>
     </div>
-    
-    <div id="chat-hint" class="hidden">Press T to chat</div>
 
-    <div id="meme-coin-stats" class="hidden">
-        <!-- Stats will be populated by JavaScript -->
-    </div>
+    <div id="chat-hint">Press <span style="color:#4a8fff;font-weight:600;">T</span> to type a message</div>
+
+    <div id="meme-coin-stats" class="hidden"></div>
 
     <div id="emote-wheel" class="hidden">
         <div class="emote-wheel-center">
-            <div class="emote-item" data-emote="1">😀</div>
-            <div class="emote-item" data-emote="2">😎</div>
-            <div class="emote-item" data-emote="3">🤪</div>
-            <div class="emote-item" data-emote="4">🤖</div>
-            <div class="emote-item" data-emote="5">🚀</div>
-            <div class="emote-item" data-emote="6">💎</div>
-            <div class="emote-item" data-emote="7">🔥</div>
-            <div class="emote-item" data-emote="8">🌟</div>
+            <div class="emote-item" data-emote="1">&#x1F600;</div>
+            <div class="emote-item" data-emote="2">&#x1F60E;</div>
+            <div class="emote-item" data-emote="3">&#x1F92A;</div>
+            <div class="emote-item" data-emote="4">&#x1F916;</div>
+            <div class="emote-item" data-emote="5">&#x1F680;</div>
+            <div class="emote-item" data-emote="6">&#x1F48E;</div>
+            <div class="emote-item" data-emote="7">&#x1F525;</div>
+            <div class="emote-item" data-emote="8">&#x1F31F;</div>
         </div>
     </div>
 
@@ -562,68 +686,36 @@
             <h1>Controls</h1>
             <div class="keybind-section">
                 <h2>Movement</h2>
-                <div class="keybind">
-                    <span class="key">W</span>
-                    <span class="description">Walk Forward</span>
+                <div class="keybind"><span class="key">W</span><span class="description">Walk Forward</span></div>
+                <div class="keybind"><span class="key">S</span><span class="description">Walk Backward</span></div>
+                <div class="keybind"><span class="key">A</span><span class="description">Turn Left 90&deg;</span></div>
+                <div class="keybind"><span class="key">D</span><span class="description">Turn Right 90&deg;</span></div>
+                <div class="keybind"><span class="key">W+A</span><span class="description">Forward-Left 45&deg;</span>
                 </div>
-                <div class="keybind">
-                    <span class="key">S</span>
-                    <span class="description">Walk Backward</span>
+                <div class="keybind"><span class="key">W+D</span><span class="description">Forward-Right 45&deg;</span>
                 </div>
-                <div class="keybind">
-                    <span class="key">A</span>
-                    <span class="description">Turn Left 90°</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">D</span>
-                    <span class="description">Turn Right 90°</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">W+A</span>
-                    <span class="description">Forward-Left 45°</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">W+D</span>
-                    <span class="description">Forward-Right 45°</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">SHIFT</span>
-                    <span class="description">Sprint (55% faster)</span>
+                <div class="keybind"><span class="key">SHIFT</span><span class="description">Sprint (55% faster)</span>
                 </div>
             </div>
-
             <div class="keybind-section">
-                <h2>Camera & UI</h2>
-                <div class="keybind">
-                    <span class="key">Mouse</span>
-                    <span class="description">Look Around</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">F</span>
-                    <span class="description">Emote Wheel</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">T</span>
-                    <span class="description">Chat</span>
-                </div>
-                <div class="keybind">
-                    <span class="key">ESC</span>
-                    <span class="description">Menu (this)</span>
-                </div>
+                <h2>Camera &amp; UI</h2>
+                <div class="keybind"><span class="key">Mouse</span><span class="description">Look Around</span></div>
+                <div class="keybind"><span class="key">F</span><span class="description">Emote Wheel</span></div>
+                <div class="keybind"><span class="key">T</span><span class="description">Chat</span></div>
+                <div class="keybind"><span class="key">ESC</span><span class="description">Menu (this)</span></div>
             </div>
-
-            <div class="menu-footer">
-                Press ESC to close
-            </div>
+            <div class="menu-footer">Press ESC to close</div>
         </div>
     </div>
-    
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.min.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
     <script src="https://unpkg.com/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <script src="game.js"></script>
-</body>
-</html>
 
+    <div id="crt-overlay"></div>
+</body>
+
+</html>
