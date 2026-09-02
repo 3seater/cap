@@ -4,9 +4,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Multiplayer Room</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap"
-        rel="stylesheet">
+    <title>Cap</title>
+    <meta name="description" content="stop the cap.">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/assets/favicon.png">
+    <link rel="shortcut icon" type="image/png" href="/assets/favicon.png">
+
+    <!-- Open Graph / Social banner -->
+    <meta property="og:title" content="Cap">
+    <meta property="og:description" content="stop the cap.">
+    <meta property="og:image" content="/assets/site banner.png">
+    <meta property="og:type" content="website">
+
+    <!-- Twitter card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Cap">
+    <meta name="twitter:description" content="stop the cap.">
+    <meta name="twitter:image" content="/assets/site banner.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -267,6 +284,17 @@
             margin: 0 4px;
         }
 
+        .chat-system {
+            color: #4a8fff;
+            font-size: 11px;
+        }
+
+        .chat-hint {
+            color: rgba(255, 255, 255, 0.2);
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
         #chat-input-container {
             display: none;
         }
@@ -299,12 +327,7 @@
         }
 
         #chat-hint {
-            position: static;
-            color: rgba(255,255,255,0.35);
-            font-size: 10px;
-            padding: 6px 12px;
-            pointer-events: none;
-            letter-spacing: 1px;
+            display: none;
         }
 
         /* ── Meme Coin Stats ── */
@@ -654,7 +677,7 @@
     <div id="ui-overlay" class="hidden">
         <div class="label">Players Online</div>
         <div class="value"><span id="player-count">0</span></div>
-        <div class="controls">WASD to move &bull; Mouse to look</div>
+        <div class="controls">W/S to move &bull; Mouse to look</div>
     </div>
 
     <div id="chat-container" class="hidden">
@@ -688,11 +711,7 @@
                 <h2>Movement</h2>
                 <div class="keybind"><span class="key">W</span><span class="description">Walk Forward</span></div>
                 <div class="keybind"><span class="key">S</span><span class="description">Walk Backward</span></div>
-                <div class="keybind"><span class="key">A</span><span class="description">Turn Left 90&deg;</span></div>
-                <div class="keybind"><span class="key">D</span><span class="description">Turn Right 90&deg;</span></div>
-                <div class="keybind"><span class="key">W+A</span><span class="description">Forward-Left 45&deg;</span>
-                </div>
-                <div class="keybind"><span class="key">W+D</span><span class="description">Forward-Right 45&deg;</span>
+                <div class="keybind"><span class="key">Mouse</span><span class="description">Turn / Look Around</span>
                 </div>
                 <div class="keybind"><span class="key">SHIFT</span><span class="description">Sprint (55% faster)</span>
                 </div>

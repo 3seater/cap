@@ -36,7 +36,7 @@ const STATS_UPDATE_INTERVAL = 30000; // Update every 30 seconds
 
 // Your Solana token contract address (replace with your actual address)
 // Example: const TOKEN_ADDRESS = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"; // USDC
-const TOKEN_ADDRESS = "0xcbf2c93a338e806ada15003d12451bbdffb103a8";
+const TOKEN_ADDRESS = "YOUR_SOLANA_TOKEN_ADDRESS_HERE"; // TODO: replace with CA after launch
 
 // Fetch meme coin stats from DexScreener (free API)
 async function fetchMemeCoinStats() {
@@ -181,7 +181,9 @@ function hideLoadingScreen() {
         }
         document.getElementById('ui-overlay').classList.remove('hidden');
         document.getElementById('chat-container').classList.remove('hidden');
-        document.getElementById('chat-hint').classList.remove('hidden');
+        document.getElementById('chat-hint').classList.add('hidden');
+        addSystemMessage(`${username} joined`);
+        addSystemMessage('Press T or Enter to chat', true);
 
         // Show meme coin stats if token address is configured
         if (TOKEN_ADDRESS && TOKEN_ADDRESS !== 'YOUR_SOLANA_TOKEN_ADDRESS_HERE') {
@@ -193,18 +195,18 @@ function hideLoadingScreen() {
 // Username input
 document.getElementById('join-button').addEventListener('click', async () => {
     username = document.getElementById('username-field').value.trim() || `Player_${Math.random().toString(36).substr(2, 6)}`;
-    
+
     document.getElementById('username-input').classList.add('hidden');
     document.getElementById('loading-screen').classList.remove('hidden');
 
     loadingStartTime = Date.now();
     modelsLoaded = false;
     serverConnected = false;
-    
+
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     updateLoadingProgress(10, 'Loading models...');
-    
+
     try {
         console.log('Loading models...');
         await Promise.all([loadWalkGLTF(), loadIdleGLTF()]);
@@ -253,18 +255,18 @@ function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a1a2e);
     scene.fog = new THREE.FogExp2(0x0a1a2e, 0.06);
-    
+
     // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 2, 5);
-    
+
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('canvas-container').appendChild(renderer.domElement);
-    
+
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
@@ -303,13 +305,13 @@ function init() {
     createDustParticles();
     createFloatingHat();
     createPlayerCharacter();
-    
+
     // Connect to server
-    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    const serverUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         ? ''
         : 'https://cap-q7mt.onrender.com';
     socket = io(serverUrl);
-    
+
     socket.on('connect', () => {
         console.log('Connected to server');
         serverConnected = true;
@@ -342,7 +344,7 @@ function init() {
     socket.on('disconnect', (reason) => {
         console.log('Disconnected from server:', reason);
     });
-    
+
     socket.on('currentPlayers', (players) => {
         players.forEach(playerData => {
             if (playerData.id !== socket.id) {
@@ -351,37 +353,41 @@ function init() {
         });
         updatePlayerCount();
     });
-    
+
     socket.on('playerJoined', (playerData) => {
         if (playerData.id !== socket.id) {
             addOtherPlayer(playerData);
             updatePlayerCount();
+            addSystemMessage(`${playerData.username} joined`);
         }
     });
-    
+
     socket.on('playerMoved', (data) => {
         const otherPlayer = otherPlayers.get(data.id);
         if (otherPlayer) {
             otherPlayer.mesh.position.set(data.position.x, data.position.y, data.position.z);
             otherPlayer.mesh.rotation.y = data.rotation.y;
-            
+
             // Update animation based on state
             if (otherPlayer.mixer && otherPlayer.animations) {
                 updatePlayerAnimation(otherPlayer, data.animState);
             }
         }
     });
-    
+
     socket.on('playerLeft', (playerId) => {
+        const leavingPlayer = otherPlayers.get(playerId);
+        const leavingName = leavingPlayer ? leavingPlayer.username : 'Someone';
         removeOtherPlayer(playerId);
         updatePlayerCount();
+        addSystemMessage(`${leavingName} left`);
         if (chatMessages.has(playerId)) {
             const chatSprite = chatMessages.get(playerId);
             scene.remove(chatSprite);
             chatMessages.delete(playerId);
         }
     });
-    
+
     socket.on('chatMessage', (data) => {
         addMessageToChatLog(data.username, data.message);
     });
@@ -391,23 +397,23 @@ function init() {
         // TODO: Show emote animation above other player's head
         console.log(`Player ${data.playerId} played emote ${data.emoteId}`);
     });
-    
+
     // Keyboard controls
     document.addEventListener('keydown', (e) => {
         const key = e.key.toLowerCase();
-        
-        if (key === 't' && isInitialized && !isChatOpen) {
+
+        if ((key === 't' || key === 'enter') && isInitialized && !isChatOpen) {
             openChat();
             e.preventDefault();
             return;
         }
-        
+
         if (key === 'enter' && isChatOpen) {
             sendChatMessage();
             e.preventDefault();
             return;
         }
-        
+
         if (key === 'escape' && isChatOpen) {
             closeChat();
             e.preventDefault();
@@ -432,7 +438,7 @@ function init() {
             keys[key] = true;
         }
     });
-    
+
     document.addEventListener('keyup', (e) => {
         const key = e.key.toLowerCase();
 
@@ -450,17 +456,17 @@ function init() {
             keys[key] = false;
         }
     });
-    
+
     // Mouse controls
     let isPointerLocked = false;
-    
+
     renderer.domElement.addEventListener('click', () => {
         renderer.domElement.requestPointerLock();
     });
-    
+
     document.addEventListener('pointerlockchange', () => {
         isPointerLocked = document.pointerLockElement === renderer.domElement;
-        
+
         // Ensure cursor is hidden when pointer is locked
         if (isPointerLocked) {
             if (renderer && renderer.domElement) {
@@ -469,24 +475,24 @@ function init() {
             document.body.style.cursor = 'none';
         }
     });
-    
+
     document.addEventListener('mousemove', (e) => {
         if (isPointerLocked && player) {
-const yaw = -e.movementX * 0.002;
+            const yaw = -e.movementX * 0.002;
             player.mesh.rotation.y += yaw;
             cameraYaw = player.mesh.rotation.y;
-            
+
             pitch -= e.movementY * 0.002;
             pitch = Math.max(-1.2, Math.min(0.8, pitch));
         }
     });
-    
+
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
-    
+
     animate();
 }
 
@@ -559,7 +565,7 @@ function createNormalMap(width, height) {
             // Create normal map (RGB = XYZ normal)
             const nx = 0.5 + (Math.random() - 0.5) * 0.2; // X normal
             const ny = 0.5 + (Math.random() - 0.5) * 0.2; // Y normal
-            const nz = Math.sqrt(1 - nx*nx - ny*ny); // Z normal (normalized)
+            const nz = Math.sqrt(1 - nx * nx - ny * ny); // Z normal (normalized)
 
             data[i] = nx * 255;     // R
             data[i + 1] = ny * 255; // G
@@ -579,13 +585,13 @@ function createNormalMap(width, height) {
 
 function createDustParticles() {
     const particleCount = 200;
-    
+
     const createDustTexture = () => {
         const canvas = document.createElement('canvas');
         canvas.width = 128;
         canvas.height = 128;
         const context = canvas.getContext('2d');
-        
+
         const centerX = 64;
         const centerY = 64;
         const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 64);
@@ -594,25 +600,25 @@ function createDustParticles() {
         gradient.addColorStop(0.4, 'rgba(180, 180, 200, 0.3)');
         gradient.addColorStop(0.7, 'rgba(140, 140, 160, 0.1)');
         gradient.addColorStop(1, 'rgba(100, 100, 140, 0)');
-        
+
         context.fillStyle = gradient;
         context.fillRect(0, 0, 128, 128);
-        
+
         return canvas;
     };
-    
+
     const texture = new THREE.CanvasTexture(createDustTexture());
     texture.needsUpdate = true;
-    
+
     for (let i = 0; i < particleCount; i++) {
         const radius = Math.random() * 20;
         const theta = Math.random() * Math.PI * 2;
         const height = Math.random() * 15;
-        
+
         const x = Math.cos(theta) * radius;
         const y = height;
         const z = Math.sin(theta) * radius;
-        
+
         const spriteMaterial = new THREE.SpriteMaterial({
             map: texture,
             color: 0x8a9ba8,
@@ -622,18 +628,18 @@ function createDustParticles() {
             depthTest: true,
             depthWrite: false
         });
-        
+
         const sprite = new THREE.Sprite(spriteMaterial);
         const size = Math.random() * 0.15 + 0.05;
         sprite.scale.set(size, size, 1);
         sprite.position.set(x, y, z);
-        
+
         sprite.userData.velocity = {
             x: (Math.random() - 0.5) * 0.02 * 1.15,
             y: (Math.random() - 0.5) * 0.01 * 1.15,
             z: (Math.random() - 0.5) * 0.02 * 1.15
         };
-        
+
         scene.add(sprite);
         dustParticles.push(sprite);
     }
@@ -641,33 +647,33 @@ function createDustParticles() {
 
 function updateDustParticles() {
     if (!dustParticles || dustParticles.length === 0) return;
-    
+
     dustParticles.forEach(sprite => {
         const vel = sprite.userData.velocity;
-        
+
         sprite.position.x += vel.x;
         sprite.position.y += vel.y;
         sprite.position.z += vel.z;
-        
+
         const radius = Math.sqrt(sprite.position.x * sprite.position.x + sprite.position.z * sprite.position.z);
         if (radius > 22) {
             sprite.position.x = -sprite.position.x * 0.9;
             sprite.position.z = -sprite.position.z * 0.9;
         }
-        
+
         if (sprite.position.y > 18 || sprite.position.y < 0) {
             sprite.position.y = Math.max(0.5, Math.min(17.5, sprite.position.y));
             vel.y *= -0.5;
         }
-        
+
         vel.x += (Math.random() - 0.5) * 0.001;
         vel.y += (Math.random() - 0.5) * 0.0005;
         vel.z += (Math.random() - 0.5) * 0.001;
-        
+
         vel.x *= 0.99;
         vel.y *= 0.99;
         vel.z *= 0.99;
-        
+
         sprite.lookAt(camera.position);
     });
 }
@@ -791,13 +797,13 @@ function createFloatingHat() {
     const glowLight = new THREE.PointLight(0x1047d2, 4, 20); // Increased intensity from 2 to 4, range from 15 to 20
     glowLight.position.set(0, 0, 0);
     hatGroup.add(glowLight);
-    
+
     const createGlowTexture = () => {
         const canvas = document.createElement('canvas');
         canvas.width = 256;
         canvas.height = 256;
         const context = canvas.getContext('2d');
-        
+
         const centerX = 128;
         const centerY = 128;
         const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 128);
@@ -805,16 +811,16 @@ function createFloatingHat() {
         gradient.addColorStop(0.3, 'rgba(16, 71, 210, 0.4)');
         gradient.addColorStop(0.6, 'rgba(16, 71, 210, 0.2)');
         gradient.addColorStop(1, 'rgba(16, 71, 210, 0)');
-        
+
         context.fillStyle = gradient;
         context.fillRect(0, 0, 256, 256);
-        
+
         return canvas;
     };
-    
+
     const glowTexture = new THREE.CanvasTexture(createGlowTexture());
     glowTexture.needsUpdate = true;
-    
+
     // More glow layers for denser aura (increased from 3 to 5)
     for (let i = 0; i < 5; i++) {
         const glowSprite = new THREE.Sprite(
@@ -831,14 +837,14 @@ function createFloatingHat() {
         glowSprite.position.y = 0;
         hatGroup.add(glowSprite);
     }
-    
+
     const loader = createGLTFLoader();
     loader.load(
         'hat/hat.glb',
         (gltf) => {
             console.log('Hat model loaded');
             const hatModel = gltf.scene;
-            
+
             hatModel.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
@@ -849,16 +855,16 @@ function createFloatingHat() {
                     }
                 }
             });
-            
+
             const box = new THREE.Box3().setFromObject(hatModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDimension = Math.max(size.x, size.y, size.z);
             const scale = 10.78125 / maxDimension; // 25% bigger than original (7.5 * 1.25 * 1.15 = 10.78125)
             hatModel.scale.set(scale, scale, scale);
-            
+
             const center = box.getCenter(new THREE.Vector3());
             hatModel.position.sub(center);
-            
+
             hatGroup.add(hatModel);
 
             // Add dense particles around the hat
@@ -887,38 +893,38 @@ function createFloatingHat() {
 
 function createPlayerCharacter() {
     const group = new THREE.Group();
-    
+
     // Username label
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    
+
     context.font = '500 10px Inter, -apple-system, sans-serif';
     const textWidth = context.measureText(username).width;
-    
+
     const baseWidth = Math.max(80, textWidth + 16);
     const baseHeight = 20;
-    
+
     canvas.width = baseWidth * dpr;
     canvas.height = baseHeight * dpr;
     canvas.style.width = baseWidth + 'px';
     canvas.style.height = baseHeight + 'px';
-    
+
     context.scale(dpr, dpr);
-    
+
     context.fillStyle = 'rgba(0, 0, 0, 0.75)';
     context.fillRect(0, 0, baseWidth, baseHeight);
-    
+
     context.strokeStyle = '#1047d2';
     context.lineWidth = 1;
     context.strokeRect(0.5, 0.5, baseWidth - 1, baseHeight - 1);
-    
+
     context.fillStyle = '#ffffff';
     context.font = '500 10px Inter, -apple-system, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(username, baseWidth / 2, baseHeight / 2);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
@@ -928,7 +934,7 @@ function createPlayerCharacter() {
     sprite.scale.set(0.15 * aspectRatio, 0.15, 1);
     sprite.position.y = 2.3; // Right above character head
     group.add(sprite);
-    
+
     // Spawn randomly around the hat (hat is at 0,8,0)
     const spawnAngle = Math.random() * Math.PI * 2;
     const spawnRadius = 10 + Math.random() * 4;
@@ -940,7 +946,7 @@ function createPlayerCharacter() {
     // Face the hat
     group.rotation.y = Math.atan2(-Math.cos(spawnAngle), -Math.sin(spawnAngle));
     scene.add(group);
-    
+
     // Load character model and setup animations
     Promise.all([loadWalkGLTF(), loadIdleGLTF()])
         .then(([walkGltf, idleGltf]) => {
@@ -949,7 +955,7 @@ function createPlayerCharacter() {
         .catch((error) => {
             console.error('Error loading character model:', error);
         });
-    
+
     player = {
         mesh: group,
         usernameSprite: sprite,
@@ -957,7 +963,7 @@ function createPlayerCharacter() {
         rotation: { x: 0, y: 0, z: 0 },
         animState: 'idle'
     };
-    
+
     camera.position.set(0, 4, 8); // Start near hat
     camera.lookAt(0, 8, 0);
 }
@@ -965,28 +971,28 @@ function createPlayerCharacter() {
 // Setup character model with animations
 function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false) {
     const model = THREE.SkeletonUtils.clone(walkGltf.scene);
-    
+
     model.traverse((child) => {
         if (child.isMesh) {
             child.castShadow = true;
             child.receiveShadow = true;
         }
     });
-    
+
     const box = new THREE.Box3().setFromObject(model);
     const size = box.getSize(new THREE.Vector3());
     const maxDimension = Math.max(size.x, size.y, size.z);
     const scale = 3.5 / maxDimension;
-    
+
     model.scale.set(scale, scale, scale);
     model.rotation.y = 0;
-    
+
     const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center);
     model.position.y = -box.min.y * scale;
-    
+
     group.add(model);
-    
+
     // Setup animation mixer and actions
     const mixer = new THREE.AnimationMixer(model);
     const animations = {
@@ -995,7 +1001,7 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
         walkBackward: null,
         strafeLeft: null
     };
-    
+
     // Idle animation
     if (idleGltf?.animations?.length > 0) {
         const idleClip = idleGltf.animations[0];
@@ -1003,7 +1009,7 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
         animations.idle.setLoop(THREE.LoopRepeat);
         animations.idle.play();
     }
-    
+
     // Single walk animation that can be reversed
     if (walkGltf?.animations?.length > 0) {
         const walkClip = walkGltf.animations[0];
@@ -1044,12 +1050,12 @@ function setupCharacterModel(group, sprite, walkGltf, idleGltf, isPlayer = false
     } else {
         console.warn('Strafe left GLB not loaded or has no animations');
     }
-    
+
     // Update sprite position
     if (size.y > 0) {
         sprite.position.y = (size.y * scale) + 0.3; // Just above character head
     }
-    
+
     // Attach to player or other player object
     if (isPlayer) {
         player.mixer = mixer;
@@ -1147,25 +1153,25 @@ function updatePlayerAnimation(playerObj, newState) {
 
 function addOtherPlayer(playerData) {
     const group = new THREE.Group();
-    
+
     // Username label
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    
+
     context.font = '500 10px Inter, -apple-system, sans-serif';
     const textWidth = context.measureText(playerData.username).width;
-    
+
     const baseWidth = Math.max(80, textWidth + 16);
     const baseHeight = 20;
-    
+
     canvas.width = baseWidth * dpr;
     canvas.height = baseHeight * dpr;
     canvas.style.width = baseWidth + 'px';
     canvas.style.height = baseHeight + 'px';
-    
+
     context.scale(dpr, dpr);
-    
+
     context.fillStyle = 'rgba(0, 0, 0, 0.75)';
     context.beginPath();
     const radius = 6;
@@ -1180,7 +1186,7 @@ function addOtherPlayer(playerData) {
     context.quadraticCurveTo(0, 0, radius, 0);
     context.closePath();
     context.fill();
-    
+
     context.strokeStyle = '#1047d2';
     context.lineWidth = 1;
     context.beginPath();
@@ -1195,13 +1201,13 @@ function addOtherPlayer(playerData) {
     context.quadraticCurveTo(0.5, 0.5, radius, 0.5);
     context.closePath();
     context.stroke();
-    
+
     context.fillStyle = '#ffffff';
     context.font = '500 10px Inter, -apple-system, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(playerData.username, baseWidth / 2, baseHeight / 2);
-    
+
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
@@ -1211,11 +1217,11 @@ function addOtherPlayer(playerData) {
     sprite.scale.set(0.09 * aspectRatio, 0.09, 1);
     sprite.position.y = 2.3; // Right above character head
     group.add(sprite);
-    
+
     group.position.set(playerData.position.x, playerData.position.y, playerData.position.z);
     group.rotation.y = playerData.rotation.y;
     scene.add(group);
-    
+
     // Store other player data
     const otherPlayerObj = {
         mesh: group,
@@ -1223,9 +1229,9 @@ function addOtherPlayer(playerData) {
         username: playerData.username,
         animState: playerData.animState || 'idle'
     };
-    
+
     otherPlayers.set(playerData.id, otherPlayerObj);
-    
+
     // Load character model
     Promise.all([loadWalkGLTF(), loadIdleGLTF()])
         .then(([walkGltf, idleGltf]) => {
@@ -1233,7 +1239,7 @@ function addOtherPlayer(playerData) {
             otherPlayerObj.mixer = animData.mixer;
             otherPlayerObj.animations = animData.animations;
             otherPlayerObj.currentAction = animData.currentAction;
-            
+
             // Set initial animation
             updatePlayerAnimation(otherPlayerObj, otherPlayerObj.animState);
         })
@@ -1261,85 +1267,50 @@ function enforceBoundaries() {
 
 function updateMovement() {
     if (!player || isEmoteWheelOpen || isEscMenuOpen) return;
-    
+
     const direction = new THREE.Vector3();
     let newAnimState = 'idle';
-    let rotateCharacter = false;
-    let targetRotationOffset = 0;
-    
-    // Determine movement direction and character rotation
-    // Priority: S key overrides A/D when pressed together (backwards only)
+
+    // W = Forward, S = Backward. Mouse controls facing direction.
     if (keys['s']) {
-        // S = Backward (no rotation, just move backwards)
-        // S+A or S+D defaults to just S (backwards only)
-        direction.z -= 1; // Negative Z = backwards
+        direction.z -= 1;
         newAnimState = 'walkBackward';
-    } else if (keys['w'] && keys['a']) {
-        // W+A = Forward-left (45 degrees)
-        direction.z += 1;
-        targetRotationOffset = Math.PI / 4; // 45 degrees left
-        rotateCharacter = true;
-        newAnimState = 'walkForward';
-    } else if (keys['w'] && keys['d']) {
-        // W+D = Forward-right (-45 degrees)
-        direction.z += 1;
-        targetRotationOffset = -Math.PI / 4; // 45 degrees right
-        rotateCharacter = true;
-        newAnimState = 'walkForward';
     } else if (keys['w']) {
-        // W = Forward (0 degrees)
         direction.z += 1;
         newAnimState = 'walkForward';
-    } else if (keys['a']) {
-        // A = Rotate left in place
-        targetRotationOffset = Math.PI / 2;
-        rotateCharacter = true;
-        newAnimState = 'idle';
-    } else if (keys['d']) {
-        // D = Rotate right in place
-        targetRotationOffset = -Math.PI / 2;
-        rotateCharacter = true;
-        newAnimState = 'idle';
     }
-    
-    // Apply rotation: fixed rate per frame - no snapping
-    if (rotateCharacter) {
-        const turnRate = 0.018;
-        const dir = targetRotationOffset > 0 ? 1 : -1;
-        player.mesh.rotation.y += dir * turnRate;
-    }
-    
+
     // Apply movement
     if (direction.lengthSq() > 0) {
         direction.normalize();
         direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), player.mesh.rotation.y);
-        
+
         // Sprint: 55% faster when holding Shift (was 30%, now 55% total)
         const currentSpeed = keys['shift'] ? moveSpeed * 1.55 : moveSpeed;
-        
+
         // Calculate new position
         player.mesh.position.x += direction.x * currentSpeed;
         player.mesh.position.z += direction.z * currentSpeed;
     }
-    
+
     // STRICTLY enforce boundaries AFTER any movement (or even if not moving)
     enforceBoundaries();
-    
+
     // Update animation if state changed
     if (newAnimState !== player.animState) {
         updatePlayerAnimation(player, newAnimState);
         player.animState = newAnimState;
     }
-    
+
     // Enforce boundaries again before updating references (double-check safety)
     enforceBoundaries();
-    
+
     // Update position references
     player.position.x = player.mesh.position.x;
     player.position.y = player.mesh.position.y;
     player.position.z = player.mesh.position.z;
     player.rotation.y = player.mesh.rotation.y;
-    
+
     // Send to server
     if (socket && socket.connected) {
         socket.emit('playerMove', {
@@ -1348,7 +1319,7 @@ function updateMovement() {
             animState: player.animState
         });
     }
-    
+
     // Update camera - stable spherical, no applyAxisAngle
     const headHeight = 2.5;
     const cameraDistance = 3.5;
@@ -1376,7 +1347,7 @@ function animate() {
 
     if (player) {
         updateMovement();
-        
+
         // EXTRA SAFETY: Enforce boundaries again in animate loop (final check)
         enforceBoundaries();
 
@@ -1448,16 +1419,16 @@ function closeChat() {
     isChatOpen = false;
     const chatInputContainer = document.getElementById('chat-input-container');
     const chatHint = document.getElementById('chat-hint');
-    
+
     if (chatInputContainer) chatInputContainer.classList.remove('active');
     if (chatHint) chatHint.classList.remove('hidden');
-    
+
     const chatInput = document.getElementById('chat-input');
     if (chatInput) {
         chatInput.value = '';
         chatInput.blur();
     }
-    
+
     // Restore pointer lock after closing chat so user can move around immediately
     // This hides the cursor and allows camera movement
     if (isInitialized && !isChatOpen && !isEmoteWheelOpen && !isEscMenuOpen && renderer) {
@@ -1466,7 +1437,7 @@ function closeChat() {
             renderer.domElement.style.cursor = 'none';
         }
         document.body.style.cursor = 'none';
-        
+
         // Use setTimeout to ensure chat input is fully blurred first, then request pointer lock
         setTimeout(() => {
             if (renderer && renderer.domElement) {
@@ -1482,20 +1453,20 @@ function closeChat() {
 function sendChatMessage() {
     const chatInput = document.getElementById('chat-input');
     if (!chatInput || !socket || !socket.connected) return;
-    
+
     const message = chatInput.value.trim();
     if (message.length === 0) {
         closeChat();
         return;
     }
-    
+
     socket.emit('chatMessage', {
         username: username,
         message: message
     });
-    
+
     addMessageToChatLog(username, message);
-    
+
     chatInput.value = '';
     closeChat();
 }
@@ -1503,14 +1474,30 @@ function sendChatMessage() {
 function addMessageToChatLog(username, message) {
     const chatLog = document.getElementById('chat-log');
     if (!chatLog) return;
-    
+
     const messageDiv = document.createElement('div');
     messageDiv.className = 'chat-message';
     messageDiv.innerHTML = `<span class="chat-username">${escapeHtml(username)}:</span> ${escapeHtml(message)}`;
-    
+
     chatLog.appendChild(messageDiv);
     chatLog.scrollTop = chatLog.scrollHeight;
-    
+
+    while (chatLog.children.length > 50) {
+        chatLog.removeChild(chatLog.firstChild);
+    }
+}
+
+function addSystemMessage(text, hint = false) {
+    const chatLog = document.getElementById('chat-log');
+    if (!chatLog) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = hint ? 'chat-message chat-hint' : 'chat-message chat-system';
+    messageDiv.textContent = text;
+
+    chatLog.appendChild(messageDiv);
+    chatLog.scrollTop = chatLog.scrollHeight;
+
     while (chatLog.children.length > 50) {
         chatLog.removeChild(chatLog.firstChild);
     }
