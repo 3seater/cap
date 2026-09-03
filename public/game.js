@@ -127,7 +127,12 @@ function loadWalkGLTF() {
         loader.load('models/walk.glb', (gltf) => {
             walkGLTF = gltf;
             resolve(gltf);
-        }, undefined, reject);
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const pct = 10 + (xhr.loaded / xhr.total) * 25;
+                updateLoadingProgress(pct);
+            }
+        }, reject);
     });
 }
 
@@ -138,7 +143,12 @@ function loadIdleGLTF() {
         loader.load('models/idle.glb', (gltf) => {
             idleGLTF = gltf;
             resolve(gltf);
-        }, undefined, reject);
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const pct = 35 + (xhr.loaded / xhr.total) * 25;
+                updateLoadingProgress(pct);
+            }
+        }, reject);
     });
 }
 
@@ -149,13 +159,18 @@ function loadStrafeLeftGLTF() {
         loader.load('models/strafe left.glb', (gltf) => {
             strafeLeftGLTF = gltf;
             resolve(gltf);
-        }, undefined, reject);
+        }, (xhr) => {
+            if (xhr.lengthComputable) {
+                const pct = 60 + (xhr.loaded / xhr.total) * 20;
+                updateLoadingProgress(pct);
+            }
+        }, reject);
     });
 }
 
 // Loading screen
 let loadingStartTime = 0;
-const MIN_LOADING_TIME = 5000;
+const MIN_LOADING_TIME = 1500;
 let modelsLoaded = false;
 let serverConnected = false;
 
@@ -209,10 +224,10 @@ document.getElementById('join-button').addEventListener('click', async () => {
 
     try {
         console.log('Loading models...');
-        await Promise.all([loadWalkGLTF(), loadIdleGLTF()]);
+        await Promise.all([loadWalkGLTF(), loadIdleGLTF(), loadStrafeLeftGLTF()]);
         modelsLoaded = true;
         console.log('Models loaded successfully');
-        updateLoadingProgress(90, 'Initializing...');
+        updateLoadingProgress(82, 'Connecting...');
 
         init();
 
@@ -221,6 +236,16 @@ document.getElementById('join-button').addEventListener('click', async () => {
             hideLoadingScreen();
         } else {
             console.log('Waiting for server connection...');
+            // Animate the bar slowly from 82 → 95 while waiting for server
+            let waitPct = 82;
+            const waitTick = setInterval(() => {
+                if (serverConnected || waitPct >= 95) {
+                    clearInterval(waitTick);
+                } else {
+                    waitPct += 0.5;
+                    updateLoadingProgress(waitPct);
+                }
+            }, 200);
         }
     } catch (error) {
         console.error('Error loading models:', error);
@@ -1464,8 +1489,6 @@ function sendChatMessage() {
         username: username,
         message: message
     });
-
-    addMessageToChatLog(username, message);
 
     chatInput.value = '';
     closeChat();
